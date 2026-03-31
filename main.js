@@ -14,7 +14,7 @@ const googleImportBtn = document.getElementById('googleImportBtn');
 
 // Google OAuth Data
 // REPLACE THIS WITH YOUR CLIENT ID FROM GOOGLE CLOUD
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "39228748676-bvbke2lj8rqmtfcs5reidtoth573uvd5.apps.googleusercontent.com";
 let tokenClient;
 
 // Debounce for search
@@ -23,12 +23,12 @@ let searchTimeout;
 // Initialization
 function init() {
     csvFileInput.addEventListener('change', handleFileUpload);
-    
+
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(renderContacts, 300); // 300ms debounce
     });
-    
+
     clearFiltersBtn.addEventListener('click', () => {
         selectedLabels.clear();
         document.querySelectorAll('.label-checkbox').forEach(cb => cb.checked = false);
@@ -47,7 +47,7 @@ function init() {
 // Google OAuth Initialization & Handling
 function initGoogleClient() {
     if (typeof google === 'undefined') return;
-    
+
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
@@ -64,7 +64,7 @@ function initGoogleClient() {
             alert("Oops! You haven't added your Google Client ID into main.js yet. Please open main.js and paste your Client ID at line 14.");
             return;
         }
-        
+
         // Request an access token
         tokenClient.requestAccessToken();
     });
@@ -89,10 +89,10 @@ async function fetchGoogleContacts(accessToken) {
 
         if (!response.ok) throw new Error('Failed to fetch contacts');
         const data = await response.json();
-        
+
         processGoogleData(data.connections || []);
         statusMessage.style.display = 'none';
-        
+
     } catch (error) {
         statusMessage.textContent = `Error: ${error.message}`;
     }
@@ -120,7 +120,7 @@ function processGoogleData(connections) {
         // Labels / Memberships
         const labelList = [];
         const memberships = connection.memberships || [];
-        
+
         memberships.forEach(membership => {
             const group = membership.contactGroupMembership;
             if (group && group.contactGroupResourceName) {
@@ -168,11 +168,11 @@ function handleFileUpload(event) {
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: function(results) {
+        complete: function (results) {
             processParsedData(results.data);
             statusMessage.style.display = 'none';
         },
-        error: function(error) {
+        error: function (error) {
             statusMessage.textContent = `Error reading File: ${error.message}`;
         }
     });
@@ -190,7 +190,7 @@ function processParsedData(data) {
         const middle = (row["Middle Name"] || "").trim();
         const last = (row["Last Name"] || "").trim();
         let fullName = [first, middle, last].filter(Boolean).join(" ").trim();
-        
+
         if (!fullName) {
             fullName = (row["Name"] || row["Full Name"] || "").trim();
         }
@@ -201,7 +201,7 @@ function processParsedData(data) {
         // Process Labels
         const rawLabels = row["Labels"] || "";
         const labelList = [];
-        
+
         if (rawLabels) {
             // Split by comma
             const parts = rawLabels.split(/\s*,\s*/);
@@ -251,12 +251,12 @@ function renderLabels() {
     sortedLabels.forEach(lbl => {
         const labelEl = document.createElement('label');
         labelEl.className = 'label-item';
-        
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'label-checkbox';
         checkbox.value = lbl;
-        
+
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
                 selectedLabels.add(lbl);
@@ -285,7 +285,7 @@ function highlightText(text, query) {
     // Escape regex characters in query
     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(${escapedQuery})`, 'gi');
-    
+
     // Split text by regex, escape parts to prevent XSS, wrap matches in <span class="highlight">
     const parts = text.split(regex);
     return parts.map(part => {
@@ -300,17 +300,17 @@ function highlightText(text, query) {
 // Simple HTML escaper
 function escapeHtml(unsafe) {
     return (unsafe || "").toString()
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 // Filter and Render Contacts
 function renderContacts() {
     const query = (searchInput.value || "").trim().toLowerCase();
-    
+
     // Filtering logic
     const filtered = contacts.filter(c => {
         const name = (c.name || "").toLowerCase();
@@ -353,7 +353,7 @@ function renderContacts() {
 
         // Card Content Building
         let innerHTML = `<div class="card-name">${highlightText(c.name, query)}</div>`;
-        
+
         if (c.email) {
             innerHTML += `
                 <div class="card-info">
@@ -361,7 +361,7 @@ function renderContacts() {
                     <span>${highlightText(c.email, query)}</span>
                 </div>`;
         }
-        
+
         if (c.phone) {
             innerHTML += `
                 <div class="card-info">
@@ -369,7 +369,7 @@ function renderContacts() {
                     <span>${highlightText(c.phone, query)}</span>
                 </div>`;
         }
-        
+
         if (c.labels && c.labels.length > 0) {
             innerHTML += `<div class="card-labels">`;
             c.labels.forEach(lbl => {
