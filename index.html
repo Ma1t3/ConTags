@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contacts Searcher</title>
+    <!-- Modern clean font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- PapaParse for parsing the CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- Phosphor Icons for premium icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="manifest" href="./manifest.json">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-left">
+            <i class="ph ph-address-book"></i>
+            <h1>Contacts</h1>
+        </div>
+        
+        <div class="search-container">
+            <i class="ph ph-magnifying-glass search-icon"></i>
+            <input type="text" id="searchInput" placeholder="Search contacts..." disabled>
+        </div>
+
+        <div class="header-right">
+            <label class="btn-primary" for="csvFileInput">
+                <i class="ph ph-upload-simple"></i>
+                Load CSV
+            </label>
+            <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+        </div>
+    </header>
+
+    <main class="app-layout">
+        <!-- Sidebar for Labels -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Labels</h2>
+                <button class="btn-secondary btn-small" id="clearFiltersBtn" disabled>Clear</button>
+            </div>
+            <div class="labels-list" id="labelsList">
+                <p class="empty-state-text">No labels loaded</p>
+                <!-- Checkboxes will be injected here -->
+            </div>
+        </aside>
+
+        <!-- Main Content for Contacts Grid -->
+        <section class="content-area">
+            <div id="statusMessage" class="status-message">
+                Please load a contacts CSV file to begin.
+            </div>
+            
+            <div class="contacts-grid" id="contactsGrid">
+                <!-- Contact cards will be injected here -->
+            </div>
+        </section>
+    </main>
+
+    <script src="main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker registered', reg))
+            .catch(err => console.log('Service Worker registration failed', err));
+        });
+      }
+    </script>
+</body>
+</html>

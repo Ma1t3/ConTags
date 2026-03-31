@@ -1,0 +1,16 @@
+{
+  "name": "Contacts Searcher",
+  "short_name": "Contacts",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#ffffff",
+  "description": "Seamlessly search and filter your contacts via tags.",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}
