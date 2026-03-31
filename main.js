@@ -77,20 +77,35 @@ async function fetchGoogleContacts(accessToken) {
     contactsGrid.innerHTML = '';
 
     try {
+        const headers = {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json'
+        };
+
+        // 1. Fetch Contact Groups (Labels) to map hex IDs to human-readable names
+        statusMessage.textContent = 'Fetching Labels...';
+        const groupsResponse = await fetch('https://people.googleapis.com/v1/contactGroups', { headers });
+        if (!groupsResponse.ok) throw new Error('Failed to fetch contact groups');
+        const groupsData = await groupsResponse.json();
+        
+        const labelMap = {};
+        if (groupsData.contactGroups) {
+            groupsData.contactGroups.forEach(g => {
+                labelMap[g.resourceName] = g.formattedName || g.name;
+            });
+        }
+
+        // 2. Fetch Contacts
+        statusMessage.textContent = 'Fetching Contacts...';
         const response = await fetch(
             'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,memberships&pageSize=2000',
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Accept': 'application/json'
-                }
-            }
+            { headers }
         );
 
         if (!response.ok) throw new Error('Failed to fetch contacts');
         const data = await response.json();
 
-        processGoogleData(data.connections || []);
+        processGoogleData(data.connections || [], labelMap);
         statusMessage.style.display = 'none';
 
     } catch (error) {
@@ -99,7 +114,7 @@ async function fetchGoogleContacts(accessToken) {
 }
 
 // Process Data from Google API Format
-function processGoogleData(connections) {
+function processGoogleData(connections, labelMap) {
     contacts = [];
     allLabels.clear();
     selectedLabels.clear();
@@ -124,14 +139,21 @@ function processGoogleData(connections) {
         memberships.forEach(membership => {
             const group = membership.contactGroupMembership;
             if (group && group.contactGroupResourceName) {
-                // IDs come in like contactGroups/12345
-                // Wait: the API only gives Resource IDs unless we also fetch contact groups
-                // We'll just extract the ID to start, but to get human readable names we'd need another API call.
-                // However, the python code just split by '/' and took the last part:  lbl = cgm.get("contactGroupResourceName", "").split("/")[-1]
-                const lbl = group.contactGroupResourceName.split("/").pop();
-                if (lbl && lbl !== "myContacts") {
-                    labelList.push(lbl);
-                    allLabels.add(lbl);
+                // Map the resourceName (e.g., contactGroups/123) to human readable string
+                const readableName = labelMap[group.contactGroupResourceName];
+                
+                if (readableName) {
+                    if (!readableName.toLowerCase().includes("mycontacts") && !readableName.toLowerCase().includes("my contacts")) {
+                        labelList.push(readableName);
+                        allLabels.add(readableName);
+                    }
+                } else {
+                    // Fallback to hex ID 
+                    const hexId = group.contactGroupResourceName.split("/").pop();
+                    if (hexId && !hexId.toLowerCase().includes("mycontacts")) {
+                        labelList.push(hexId);
+                        allLabels.add(hexId);
+                    }
                 }
             }
         });
