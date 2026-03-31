@@ -10,6 +10,12 @@ const labelsList = document.getElementById('labelsList');
 const contactsGrid = document.getElementById('contactsGrid');
 const statusMessage = document.getElementById('statusMessage');
 const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+const googleImportBtn = document.getElementById('googleImportBtn');
+
+// Google OAuth Data
+// REPLACE THIS WITH YOUR CLIENT ID FROM GOOGLE CLOUD
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+let tokenClient;
 
 // Debounce for search
 let searchTimeout;
@@ -28,6 +34,126 @@ function init() {
         document.querySelectorAll('.label-checkbox').forEach(cb => cb.checked = false);
         renderContacts();
     });
+
+    // Initialize Google OAuth Token Client if library is loaded
+    if (typeof google !== 'undefined') {
+        initGoogleClient();
+    } else {
+        // Fallback wait for the external script
+        window.onload = initGoogleClient;
+    }
+}
+
+// Google OAuth Initialization & Handling
+function initGoogleClient() {
+    if (typeof google === 'undefined') return;
+    
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/contacts.readonly',
+        callback: (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+                fetchGoogleContacts(tokenResponse.access_token);
+            }
+        },
+    });
+
+    googleImportBtn.addEventListener('click', () => {
+        if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com") {
+            // Give user friendly alert if they forgot to paste their ID
+            alert("Oops! You haven't added your Google Client ID into main.js yet. Please open main.js and paste your Client ID at line 14.");
+            return;
+        }
+        
+        // Request an access token
+        tokenClient.requestAccessToken();
+    });
+}
+
+// Fetch Google People API
+async function fetchGoogleContacts(accessToken) {
+    statusMessage.textContent = 'Fetching Google Contacts...';
+    statusMessage.style.display = 'block';
+    contactsGrid.innerHTML = '';
+
+    try {
+        const response = await fetch(
+            'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,memberships&pageSize=2000',
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json'
+                }
+            }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch contacts');
+        const data = await response.json();
+        
+        processGoogleData(data.connections || []);
+        statusMessage.style.display = 'none';
+        
+    } catch (error) {
+        statusMessage.textContent = `Error: ${error.message}`;
+    }
+}
+
+// Process Data from Google API Format
+function processGoogleData(connections) {
+    contacts = [];
+    allLabels.clear();
+    selectedLabels.clear();
+
+    connections.forEach(connection => {
+        // Name
+        const nameList = connection.names || [];
+        const name = nameList.length > 0 ? nameList[0].displayName : "No Name";
+
+        // Email
+        const emails = connection.emailAddresses || [];
+        const email = emails.length > 0 ? emails[0].value : "";
+
+        // Phone
+        const phones = connection.phoneNumbers || [];
+        const phone = phones.length > 0 ? phones[0].canonicalForm || phones[0].value : "";
+
+        // Labels / Memberships
+        const labelList = [];
+        const memberships = connection.memberships || [];
+        
+        memberships.forEach(membership => {
+            const group = membership.contactGroupMembership;
+            if (group && group.contactGroupResourceName) {
+                // IDs come in like contactGroups/12345
+                // Wait: the API only gives Resource IDs unless we also fetch contact groups
+                // We'll just extract the ID to start, but to get human readable names we'd need another API call.
+                // However, the python code just split by '/' and took the last part:  lbl = cgm.get("contactGroupResourceName", "").split("/")[-1]
+                const lbl = group.contactGroupResourceName.split("/").pop();
+                if (lbl && lbl !== "myContacts") {
+                    labelList.push(lbl);
+                    allLabels.add(lbl);
+                }
+            }
+        });
+
+        contacts.push({
+            name: name,
+            email: email,
+            phone: phone,
+            labels: labelList
+        });
+    });
+
+    // Sort contacts by name
+    contacts.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Enable UI
+    searchInput.disabled = false;
+    clearFiltersBtn.disabled = false;
+
+    // Render Sidebars & Contacts
+    renderLabels();
+    renderContacts();
 }
 
 // File Upload & Parsing

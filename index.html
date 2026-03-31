@@ -16,6 +16,10 @@
     
     <!-- Phosphor Icons for premium icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Google Identity Services for OAuth -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <link rel="manifest" href="./manifest.json">
 </head>
 <body>
@@ -30,7 +34,12 @@
             <input type="text" id="searchInput" placeholder="Search contacts..." disabled>
         </div>
 
-        <div class="header-right">
+        <div class="header-right" style="display: flex; gap: 0.5rem;">
+            <button id="googleImportBtn" class="btn-primary" style="background-color: var(--primary-color);">
+                <i class="ph ph-google-logo"></i>
+                Import Google Contacts
+            </button>
+
             <label class="btn-primary" for="csvFileInput">
                 <i class="ph ph-upload-simple"></i>
                 Load CSV
