@@ -1,9 +1,15 @@
-const CACHE_NAME = 'contacts-searcher-v19';
+const CACHE_NAME = 'contacts-searcher-v21';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
   './main.js',
+  './js/config.js',
+  './js/dom.js',
+  './js/text-utils.js',
+  './js/image-utils.js',
+  './js/storage.js',
+  './js/service-worker-registration.js',
   './manifest.json',
   './icon.png'
 ];

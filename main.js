@@ -1,63 +1,35 @@
+import { GOOGLE_CLIENT_ID, PHOTO_SIZE } from './js/config.js';
+import {
+    csvFileInput, searchInput, labelsList, contactsGrid, statusMessage,
+    clearFiltersBtn, googleImportBtn, deleteContactsBtn, storageInfo,
+    importMenuBtn, importMenu, createContactBtn, contactDialog, contactForm,
+    closeContactDialogBtn, cancelContactBtn, contactFormError, contactPhotoInput,
+    contactPhotoPreview, syncGoogleBtn, syncCount, contactDialogTitle,
+    contactDialogDescription, contactSubmitLabel, settingsMenuBtn, settingsMenu,
+    openMapBtn, mapDialog, closeMapBtn, mapStatus, unmappedContacts,
+    unmappedContactsList, mapProgress
+} from './js/dom.js';
+import { preparePhoto, getPhotoUrl, blobToBase64 } from './js/image-utils.js';
+import {
+    escapeHtml, highlightText, getInitials, normalizeAddress, wait
+} from './js/text-utils.js';
+import { writeContacts, readContacts, removeContacts } from './js/storage.js';
+import { registerServiceWorker } from './js/service-worker-registration.js';
+
 // State
 let contacts = [];
 let allLabels = new Set();
 let selectedLabels = new Set();
 let currentDataSource = '';
 let lastUpdated = null;
-
-const DB_NAME = 'contags';
-const DB_VERSION = 1;
-const STORE_NAME = 'appData';
-const CONTACTS_KEY = 'contacts';
-
-// DOM Elements
-const csvFileInput = document.getElementById('csvFileInput');
-const searchInput = document.getElementById('searchInput');
-const labelsList = document.getElementById('labelsList');
-const contactsGrid = document.getElementById('contactsGrid');
-const statusMessage = document.getElementById('statusMessage');
-const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-const googleImportBtn = document.getElementById('googleImportBtn');
-const deleteContactsBtn = document.getElementById('deleteContactsBtn');
-const storageInfo = document.getElementById('storageInfo');
-const importMenuBtn = document.getElementById('importMenuBtn');
-const importMenu = document.getElementById('importMenu');
-const createContactBtn = document.getElementById('createContactBtn');
-const contactDialog = document.getElementById('contactDialog');
-const contactForm = document.getElementById('contactForm');
-const closeContactDialogBtn = document.getElementById('closeContactDialogBtn');
-const cancelContactBtn = document.getElementById('cancelContactBtn');
-const contactFormError = document.getElementById('contactFormError');
-const contactPhotoInput = document.getElementById('contactPhoto');
-const contactPhotoPreview = document.getElementById('contactPhotoPreview');
-const syncGoogleBtn = document.getElementById('syncGoogleBtn');
-const syncCount = document.getElementById('syncCount');
-const contactDialogTitle = document.getElementById('contactDialogTitle');
-const contactDialogDescription = document.getElementById('contactDialogDescription');
-const contactSubmitLabel = document.getElementById('contactSubmitLabel');
-const settingsMenuBtn = document.getElementById('settingsMenuBtn');
-const settingsMenu = document.getElementById('settingsMenu');
-const openMapBtn = document.getElementById('openMapBtn');
-const mapDialog = document.getElementById('mapDialog');
-const closeMapBtn = document.getElementById('closeMapBtn');
-const mapStatus = document.getElementById('mapStatus');
-const unmappedContacts = document.getElementById('unmappedContacts');
-const unmappedContactsList = document.getElementById('unmappedContactsList');
-const mapProgress = document.getElementById('mapProgress');
-
-const photoObjectUrls = new WeakMap();
 let previewObjectUrl = null;
 let editingContact = null;
 let contactsMap = null;
 let contactMarkers = null;
 let geocodingActive = false;
 let geocodingController = null;
-const MAX_PHOTO_FILE_SIZE = 10 * 1024 * 1024;
-const PHOTO_SIZE = 512;
 
 // Google OAuth Data
-// REPLACE THIS WITH YOUR CLIENT ID FROM GOOGLE CLOUD
-const GOOGLE_CLIENT_ID = "39228748676-bvbke2lj8rqmtfcs5reidtoth573uvd5.apps.googleusercontent.com";
 let tokenClient;
 let googleAuthIntent = 'import';
 
@@ -294,57 +266,6 @@ function clearPhotoPreview() {
     contactPhotoPreview.innerHTML = '<i class="ph ph-user"></i>';
 }
 
-async function preparePhoto(fileOrBlob) {
-    if (fileOrBlob.type && !fileOrBlob.type.startsWith('image/')) {
-        throw new Error('Please choose a valid image file.');
-    }
-    if (fileOrBlob.size > MAX_PHOTO_FILE_SIZE) {
-        throw new Error('The photo must be smaller than 10 MB.');
-    }
-
-    const bitmap = await createImageBitmap(fileOrBlob);
-    const scale = Math.min(1, PHOTO_SIZE / Math.max(bitmap.width, bitmap.height));
-    const targetWidth = Math.max(1, Math.round(bitmap.width * scale));
-    const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const context = canvas.getContext('2d');
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, targetWidth, targetHeight);
-    context.drawImage(
-        bitmap,
-        0, 0, bitmap.width, bitmap.height,
-        0, 0, targetWidth, targetHeight
-    );
-    bitmap.close();
-
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(
-            blob => blob ? resolve(blob) : reject(new Error('The photo could not be processed.')),
-            'image/jpeg',
-            0.92
-        );
-    });
-}
-
-function getPhotoUrl(photo) {
-    if (!photo) return '';
-    if (!photoObjectUrls.has(photo)) {
-        photoObjectUrls.set(photo, URL.createObjectURL(photo));
-    }
-    return photoObjectUrls.get(photo);
-}
-
-function getInitials(name) {
-    const parts = (name || '?').trim().split(/\s+/).filter(Boolean);
-    return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
-}
-
-function normalizeAddress(address) {
-    return (address || '').trim().replace(/\s+/g, ' ');
-}
-
 function buildLocationCache() {
     const cache = new Map();
     contacts.forEach(contact => {
@@ -534,64 +455,17 @@ async function geocodeMissingAddresses() {
     if (mapDialog.open) renderContactMap();
 }
 
-function wait(milliseconds) {
-    return new Promise(resolve => setTimeout(resolve, milliseconds));
-}
-
 // Local persistence
-function openDatabase() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onupgradeneeded = () => {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME);
-            }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
 async function saveContacts(source) {
-    const savedAt = new Date().toISOString();
-    const db = await openDatabase();
-
-    await new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        transaction.objectStore(STORE_NAME).put({
-            contacts,
-            source,
-            savedAt
-        }, CONTACTS_KEY);
-        transaction.oncomplete = resolve;
-        transaction.onerror = () => reject(transaction.error);
-        transaction.onabort = () => reject(transaction.error);
-    });
-
-    db.close();
+    const savedAt = await writeContacts(contacts, source);
     currentDataSource = source;
     lastUpdated = savedAt;
     updateStorageInfo();
 }
 
-async function readSavedContacts() {
-    const db = await openDatabase();
-    const savedData = await new Promise((resolve, reject) => {
-        const request = db.transaction(STORE_NAME, 'readonly')
-            .objectStore(STORE_NAME)
-            .get(CONTACTS_KEY);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-    db.close();
-    return savedData;
-}
-
 async function restoreContacts() {
     try {
-        const savedData = await readSavedContacts();
+        const savedData = await readContacts();
         if (!savedData || !Array.isArray(savedData.contacts)) {
             updateStorageInfo();
             return;
@@ -617,15 +491,7 @@ async function deleteLocalContacts() {
     if (!confirm('Delete all locally stored contacts from this device?')) return;
 
     try {
-        const db = await openDatabase();
-        await new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            transaction.objectStore(STORE_NAME).delete(CONTACTS_KEY);
-            transaction.oncomplete = resolve;
-            transaction.onerror = () => reject(transaction.error);
-            transaction.onabort = () => reject(transaction.error);
-        });
-        db.close();
+        await removeContacts();
 
         contacts = [];
         allLabels.clear();
@@ -888,15 +754,6 @@ async function uploadGoogleContactPhoto(contact, accessToken) {
     if (!response.ok) throw await googleApiError(response, 'Contact created, but photo upload failed');
     const result = await response.json();
     return result.person || null;
-}
-
-function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = () => reject(new Error('The profile photo could not be encoded.'));
-        reader.readAsDataURL(blob);
-    });
 }
 
 async function googleApiError(response, fallbackMessage) {
@@ -1248,36 +1105,6 @@ function renderLabels() {
     });
 }
 
-// Highlight function mimicking the Python highlight logic
-function highlightText(text, query) {
-    if (!text) return '';
-    if (!query) return escapeHtml(text);
-
-    // Escape regex characters in query
-    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedQuery})`, 'gi');
-
-    // Split text by regex, escape parts to prevent XSS, wrap matches in <span class="highlight">
-    const parts = text.split(regex);
-    return parts.map(part => {
-        if (part.toLowerCase() === query.toLowerCase()) {
-            return `<span class="highlight">${escapeHtml(part)}</span>`;
-        } else {
-            return escapeHtml(part);
-        }
-    }).join('');
-}
-
-// Simple HTML escaper
-function escapeHtml(unsafe) {
-    return (unsafe || "").toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
 // Filter and Render Contacts
 function renderContacts() {
     const query = (searchInput.value || "").trim().toLowerCase();
@@ -1407,4 +1234,5 @@ function renderContacts() {
 }
 
 // Run init
+registerServiceWorker();
 init();
