@@ -10,6 +10,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
     
     <!-- PapaParse for parsing the CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -25,6 +29,30 @@
 <body>
     <header class="app-header">
         <div class="header-left">
+            <div class="dropdown settings-dropdown">
+                <button id="settingsMenuBtn" class="hamburger-button" type="button"
+                        aria-label="Open settings" aria-haspopup="menu" aria-expanded="false">
+                    <i class="ph ph-list"></i>
+                </button>
+                <div id="settingsMenu" class="dropdown-menu settings-menu" role="menu" hidden>
+                    <button id="syncGoogleBtn" class="dropdown-item" type="button" role="menuitem" disabled>
+                        <i class="ph ph-arrows-clockwise"></i>
+                        Sync with Google
+                        <span id="syncCount" class="button-count" hidden></span>
+                    </button>
+                    <button id="openMapBtn" class="dropdown-item" type="button" role="menuitem">
+                        <i class="ph ph-map-trifold"></i>
+                        Map
+                        <i id="mapProgress" class="ph ph-arrows-clockwise map-progress-icon"
+                           aria-label="Resolving addresses" title="Resolving addresses" hidden></i>
+                    </button>
+                    <button id="deleteContactsBtn" class="dropdown-item dropdown-item-danger"
+                            type="button" role="menuitem" disabled>
+                        <i class="ph ph-trash"></i>
+                        Delete local data
+                    </button>
+                </div>
+            </div>
             <i class="ph ph-address-book"></i>
             <h1>Contacts</h1>
         </div>
@@ -34,17 +62,32 @@
             <input type="text" id="searchInput" placeholder="Search contacts..." disabled>
         </div>
 
-        <div class="header-right" style="display: flex; gap: 0.5rem;">
-            <button id="googleImportBtn" class="btn-primary" style="background-color: var(--primary-color);">
-                <i class="ph ph-google-logo"></i>
-                Import Google Contacts
+        <div class="header-right">
+            <div class="dropdown">
+                <button id="importMenuBtn" class="btn-primary" type="button"
+                        aria-haspopup="menu" aria-expanded="false">
+                    <i class="ph ph-download-simple"></i>
+                    Import contacts
+                    <i class="ph ph-caret-down"></i>
+                </button>
+                <div id="importMenu" class="dropdown-menu" role="menu" hidden>
+                    <label class="dropdown-item" for="csvFileInput" role="menuitem">
+                        <i class="ph ph-file-csv"></i>
+                        From CSV file
+                    </label>
+                    <button id="googleImportBtn" class="dropdown-item" type="button" role="menuitem">
+                        <i class="ph ph-google-logo"></i>
+                        From Google Contacts
+                    </button>
+                </div>
+            </div>
+            <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+
+            <button id="createContactBtn" class="btn-primary btn-create" type="button">
+                <i class="ph ph-user-plus"></i>
+                Create contact
             </button>
 
-            <label class="btn-primary" for="csvFileInput">
-                <i class="ph ph-upload-simple"></i>
-                Load CSV
-            </label>
-            <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
         </div>
     </header>
 
@@ -58,6 +101,9 @@
             <div class="labels-list" id="labelsList">
                 <p class="empty-state-text">No labels loaded</p>
                 <!-- Checkboxes will be injected here -->
+            </div>
+            <div id="storageInfo" class="storage-info">
+                Contacts are stored only on this device.
             </div>
         </aside>
 
@@ -73,6 +119,93 @@
         </section>
     </main>
 
+    <dialog id="contactDialog" class="contact-dialog">
+        <form id="contactForm">
+            <div class="dialog-header">
+                <div>
+                    <h2 id="contactDialogTitle">Create contact</h2>
+                    <p id="contactDialogDescription">Add a contact to your locally stored list.</p>
+                </div>
+                <button id="closeContactDialogBtn" class="icon-button" type="button" aria-label="Close">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div class="form-grid">
+                <div class="photo-field">
+                    <div id="contactPhotoPreview" class="photo-preview" aria-hidden="true">
+                        <i class="ph ph-user"></i>
+                    </div>
+                    <div>
+                        <label class="btn-secondary photo-upload-button" for="contactPhoto">
+                            <i class="ph ph-camera"></i>
+                            Choose photo
+                        </label>
+                        <input id="contactPhoto" name="photo" type="file"
+                               accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+                        <small>JPG, PNG, WebP or GIF. The image is resized and stored locally.</small>
+                    </div>
+                </div>
+                <label class="form-field">
+                    <span>Name <strong aria-hidden="true">*</strong></span>
+                    <input id="contactName" name="name" type="text" required autocomplete="name">
+                </label>
+                <label class="form-field">
+                    <span>Email</span>
+                    <input name="email" type="email" autocomplete="email">
+                </label>
+                <label class="form-field">
+                    <span>Phone</span>
+                    <input name="phone" type="tel" autocomplete="tel">
+                </label>
+                <label class="form-field">
+                    <span>Address</span>
+                    <textarea name="address" rows="2" autocomplete="street-address"
+                              placeholder="Street, postal code, city, country"></textarea>
+                </label>
+                <label class="form-field">
+                    <span>Labels</span>
+                    <input name="labels" type="text" placeholder="Friends, Work">
+                    <small>Separate multiple labels with commas.</small>
+                </label>
+            </div>
+            <p id="contactFormError" class="form-error" role="alert" hidden></p>
+            <div class="dialog-actions">
+                <button id="cancelContactBtn" class="btn-secondary" type="button">Cancel</button>
+                <button class="btn-primary" type="submit">
+                    <i class="ph ph-check"></i>
+                    <span id="contactSubmitLabel">Save contact</span>
+                </button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="mapDialog" class="map-dialog">
+        <div class="map-dialog-layout">
+            <div class="dialog-header map-dialog-header">
+                <div>
+                    <h2>Contact map</h2>
+                    <p>Addresses are resolved once and their coordinates are stored locally.</p>
+                </div>
+                <button id="closeMapBtn" class="icon-button" type="button" aria-label="Close map">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div id="mapStatus" class="map-status" role="status"></div>
+            <div id="contactsMap" class="contacts-map" aria-label="Map of contact addresses"></div>
+            <details id="unmappedContacts" class="unmapped-contacts" hidden>
+                <summary>Addresses not shown on the map</summary>
+                <ul id="unmappedContactsList"></ul>
+            </details>
+            <p class="map-privacy">
+                Opening this view sends unresolved addresses—not contact names—to Nominatim.
+                Results are cached locally.
+            </p>
+        </div>
+    </dialog>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
     <script src="main.js"></script>
     <script>
       if ('serviceWorker' in navigator) {
