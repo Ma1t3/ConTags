@@ -1,4 +1,4 @@
-const CACHE_NAME = 'contacts-searcher-v21';
+const CACHE_NAME = 'contacts-searcher-v26';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

@@ -7,7 +7,9 @@ import {
     contactPhotoPreview, syncGoogleBtn, syncCount, contactDialogTitle,
     contactDialogDescription, contactSubmitLabel, settingsMenuBtn, settingsMenu,
     openMapBtn, mapDialog, closeMapBtn, mapStatus, unmappedContacts,
-    unmappedContactsList, mapProgress
+    unmappedContactsList, mapProgress, resultsSummary, filteredResultCount,
+    resultsCountLabel, resultsContext, sidebarResultCount, contactDetailsDialog,
+    closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn
 } from './js/dom.js';
 import { preparePhoto, getPhotoUrl, blobToBase64 } from './js/image-utils.js';
 import {
@@ -24,6 +26,7 @@ let currentDataSource = '';
 let lastUpdated = null;
 let previewObjectUrl = null;
 let editingContact = null;
+let viewingContact = null;
 let contactsMap = null;
 let contactMarkers = null;
 let geocodingActive = false;
@@ -51,6 +54,12 @@ async function init() {
     openMapBtn.addEventListener('click', openContactMap);
     closeMapBtn.addEventListener('click', closeContactMap);
     mapDialog.addEventListener('click', closeMapFromBackdrop);
+    closeContactDetailsBtn.addEventListener('click', closeContactDetails);
+    editContactFromDetailsBtn.addEventListener('click', editContactFromDetails);
+    contactDetailsDialog.addEventListener('click', closeDetailsFromBackdrop);
+    contactDetailsDialog.addEventListener('close', () => {
+        viewingContact = null;
+    });
     contactDialog.addEventListener('click', closeDialogFromBackdrop);
     document.addEventListener('click', closeImportMenuFromOutside);
 
@@ -139,6 +148,85 @@ function closeContactDialog() {
 
 function closeDialogFromBackdrop(event) {
     if (event.target === contactDialog) closeContactDialog();
+}
+
+function openContactDetails(contact) {
+    viewingContact = contact;
+    const photoUrl = contact.photo ? getPhotoUrl(contact.photo) : (contact.photoUrl || '');
+    const avatar = photoUrl
+        ? `<div class="details-avatar"><img src="${escapeHtml(photoUrl)}" alt="" referrerpolicy="no-referrer"></div>`
+        : `<div class="details-avatar details-avatar-fallback" aria-hidden="true">${escapeHtml(getInitials(contact.name))}</div>`;
+
+    let syncText = 'Local only';
+    let syncClass = 'detail-sync-local';
+    if (contact.syncError) {
+        syncText = 'Google sync failed';
+        syncClass = 'detail-sync-error';
+    } else if (
+        contact.syncStatus === 'pending-create' ||
+        contact.syncStatus === 'pending-update' ||
+        contact.syncStatus === 'pending-photo'
+    ) {
+        syncText = 'Pending Google sync';
+        syncClass = 'detail-sync-pending';
+    } else if (contact.syncStatus === 'synced') {
+        syncText = 'Synced with Google';
+        syncClass = 'detail-sync-complete';
+    }
+
+    const detailRows = [
+        contact.email ? detailRow('ph-envelope-simple', 'Email', contact.email) : '',
+        contact.phone ? detailRow('ph-phone', 'Phone', contact.phone) : '',
+        contact.address ? detailRow('ph-map-pin', 'Address', contact.address) : ''
+    ].join('');
+    const labels = (contact.labels || []).map(label =>
+        `<span class="card-label-tag">${escapeHtml(label)}</span>`
+    ).join('');
+
+    contactDetailsBody.innerHTML = `
+        <div class="details-profile">
+            ${avatar}
+            <div>
+                <h3>${escapeHtml(contact.name)}</h3>
+                <span class="detail-sync-status ${syncClass}">${syncText}</span>
+            </div>
+        </div>
+        <div class="details-fields">
+            ${detailRows || '<p class="details-empty">No additional contact information.</p>'}
+        </div>
+        ${labels ? `
+            <div class="details-labels">
+                <span class="details-section-label">Labels</span>
+                <div class="card-labels">${labels}</div>
+            </div>` : ''}
+    `;
+    contactDetailsDialog.showModal();
+}
+
+function detailRow(iconClass, label, value) {
+    return `
+        <div class="detail-row">
+            <i class="ph ${iconClass}"></i>
+            <div>
+                <span>${label}</span>
+                <p>${escapeHtml(value)}</p>
+            </div>
+        </div>`;
+}
+
+function closeContactDetails() {
+    contactDetailsDialog.close();
+    viewingContact = null;
+}
+
+function closeDetailsFromBackdrop(event) {
+    if (event.target === contactDetailsDialog) closeContactDetails();
+}
+
+function editContactFromDetails() {
+    const contact = viewingContact;
+    closeContactDetails();
+    if (contact) openContactDialog(contact);
 }
 
 async function createContact(event) {
@@ -504,6 +592,9 @@ async function deleteLocalContacts() {
         deleteContactsBtn.disabled = true;
         labelsList.innerHTML = '<p class="empty-state-text">No labels loaded</p>';
         contactsGrid.innerHTML = '';
+        resultsSummary.hidden = true;
+        sidebarResultCount.textContent = '0';
+        sidebarResultCount.classList.remove('is-filtered');
         statusMessage.textContent = 'Please load a contacts CSV file to begin.';
         statusMessage.style.display = 'block';
         csvFileInput.value = '';
@@ -1137,6 +1228,8 @@ function renderContacts() {
         return true;
     });
 
+    updateResultsSummary(filtered.length, query);
+
     // UI Updating
     contactsGrid.innerHTML = '';
 
@@ -1152,6 +1245,9 @@ function renderContacts() {
     filtered.forEach((c, index) => {
         const card = document.createElement('div');
         card.className = 'contact-card';
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', `View details for ${c.name}`);
         // Give staggered animations
         card.style.animationDelay = `${(index % 10) * 0.05}s`;
 
@@ -1223,14 +1319,51 @@ function renderContacts() {
             innerHTML += `</div>`;
         }
 
-        innerHTML += `
-            <button class="card-edit-button" type="button" aria-label="Edit ${escapeHtml(c.name)}">
-                <i class="ph ph-pencil-simple"></i>
-            </button>`;
         card.innerHTML = innerHTML;
-        card.querySelector('.card-edit-button').addEventListener('click', () => openContactDialog(c));
+        card.addEventListener('click', () => openContactDetails(c));
+        card.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openContactDetails(c);
+            }
+        });
         contactsGrid.appendChild(card);
     });
+}
+
+function updateResultsSummary(filteredCount, query) {
+    if (contacts.length === 0) {
+        resultsSummary.hidden = true;
+        return;
+    }
+
+    resultsSummary.hidden = false;
+    filteredResultCount.textContent = filteredCount.toLocaleString();
+    sidebarResultCount.textContent = filteredCount.toLocaleString();
+    resultsCountLabel.textContent = filteredCount === 1 ? 'contact' : 'contacts';
+
+    const contexts = [];
+    if (selectedLabels.size > 0) {
+        const labelNames = Array.from(selectedLabels);
+        const visibleNames = labelNames.slice(0, 2).map(label => `"${label}"`);
+        const remainingCount = labelNames.length - visibleNames.length;
+        let labelContext = visibleNames.join(' + ');
+        if (remainingCount > 0) labelContext += ` + ${remainingCount} more`;
+        contexts.push(labelContext);
+    }
+    if (query) contexts.push(`search: "${query}"`);
+
+    resultsContext.textContent = contexts.length > 0
+        ? `of ${contacts.length.toLocaleString()} / ${contexts.join(' / ')}`
+        : `total`;
+    resultsSummary.classList.toggle(
+        'results-filtered',
+        filteredCount !== contacts.length || contexts.length > 0
+    );
+    sidebarResultCount.classList.toggle(
+        'is-filtered',
+        filteredCount !== contacts.length || contexts.length > 0
+    );
 }
 
 // Run init

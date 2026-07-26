@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Contacts Searcher</title>
     <!-- Modern clean font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -95,7 +95,10 @@
         <!-- Sidebar for Labels -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h2>Labels</h2>
+                <h2>
+                    Labels
+                    <span id="sidebarResultCount" class="sidebar-result-count" aria-label="Matching contacts">0</span>
+                </h2>
                 <button class="btn-secondary btn-small" id="clearFiltersBtn" disabled>Clear</button>
             </div>
             <div class="labels-list" id="labelsList">
@@ -109,6 +112,14 @@
 
         <!-- Main Content for Contacts Grid -->
         <section class="content-area">
+            <div id="resultsSummary" class="results-summary" aria-live="polite" hidden>
+                <div class="results-count">
+                    <strong id="filteredResultCount">0</strong>
+                    <span id="resultsCountLabel">contacts</span>
+                </div>
+                <span id="resultsContext" class="results-context"></span>
+            </div>
+
             <div id="statusMessage" class="status-message">
                 Please load a contacts CSV file to begin.
             </div>
@@ -177,6 +188,28 @@
                 </button>
             </div>
         </form>
+    </dialog>
+
+    <dialog id="contactDetailsDialog" class="contact-dialog contact-details-dialog">
+        <div class="contact-details-content">
+            <div class="dialog-header">
+                <div>
+                    <h2>Contact details</h2>
+                    <p>Locally stored contact information.</p>
+                </div>
+                <button id="closeContactDetailsBtn" class="icon-button" type="button"
+                        aria-label="Close contact details">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div id="contactDetailsBody"></div>
+            <div class="dialog-actions">
+                <button id="editContactFromDetailsBtn" class="btn-primary" type="button">
+                    <i class="ph ph-pencil-simple"></i>
+                    Edit contact
+                </button>
+            </div>
+        </div>
     </dialog>
 
     <dialog id="mapDialog" class="map-dialog">
