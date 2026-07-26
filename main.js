@@ -9,7 +9,9 @@ import {
     openMapBtn, mapDialog, closeMapBtn, mapStatus, unmappedContacts,
     unmappedContactsList, mapProgress, resultsSummary, filteredResultCount,
     resultsCountLabel, resultsContext, sidebarResultCount, contactDetailsDialog,
-    closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn
+    closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn,
+    sidebar, mobileLabelsToggle, mobileSelectedLabelCount, mobileFilterResultCount,
+    closeMobileLabelsBtn, labelSearchInput, mobileFilterSummary, doneMobileLabelsBtn
 } from './js/dom.js';
 import { preparePhoto, getPhotoUrl, blobToBase64 } from './js/image-utils.js';
 import {
@@ -60,6 +62,15 @@ async function init() {
     contactDetailsDialog.addEventListener('close', () => {
         viewingContact = null;
     });
+    mobileLabelsToggle.addEventListener('click', openMobileLabels);
+    closeMobileLabelsBtn.addEventListener('click', closeMobileLabels);
+    doneMobileLabelsBtn.addEventListener('click', closeMobileLabels);
+    labelSearchInput.addEventListener('input', renderLabels);
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && sidebar.classList.contains('mobile-expanded')) {
+            closeMobileLabels();
+        }
+    });
     contactDialog.addEventListener('click', closeDialogFromBackdrop);
     document.addEventListener('click', closeImportMenuFromOutside);
 
@@ -70,7 +81,7 @@ async function init() {
 
     clearFiltersBtn.addEventListener('click', () => {
         selectedLabels.clear();
-        document.querySelectorAll('.label-checkbox').forEach(cb => cb.checked = false);
+        renderLabels();
         renderContacts();
     });
 
@@ -83,6 +94,21 @@ async function init() {
     }
 
     await restoreContacts();
+}
+
+function openMobileLabels() {
+    sidebar.classList.add('mobile-expanded');
+    mobileLabelsToggle.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('labels-panel-open');
+    labelSearchInput.focus();
+}
+
+function closeMobileLabels() {
+    sidebar.classList.remove('mobile-expanded');
+    mobileLabelsToggle.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('labels-panel-open');
+    labelSearchInput.value = '';
+    renderLabels();
 }
 
 function toggleImportMenu() {
@@ -595,6 +621,7 @@ async function deleteLocalContacts() {
         resultsSummary.hidden = true;
         sidebarResultCount.textContent = '0';
         sidebarResultCount.classList.remove('is-filtered');
+        updateMobileFilterSummary(0);
         statusMessage.textContent = 'Please load a contacts CSV file to begin.';
         statusMessage.style.display = 'block';
         csvFileInput.value = '';
@@ -1160,10 +1187,15 @@ async function persistImportedContacts(source) {
 // Render Labels Sidebar
 function renderLabels() {
     labelsList.innerHTML = '';
-    const sortedLabels = Array.from(allLabels).sort();
+    const labelQuery = (labelSearchInput.value || '').trim().toLowerCase();
+    const sortedLabels = Array.from(allLabels)
+        .sort()
+        .filter(label => label.toLowerCase().includes(labelQuery));
 
     if (sortedLabels.length === 0) {
-        labelsList.innerHTML = '<p class="empty-state-text">No labels found.</p>';
+        labelsList.innerHTML = `<p class="empty-state-text">${
+            labelQuery ? 'No matching labels.' : 'No labels found.'
+        }</p>`;
         return;
     }
 
@@ -1175,6 +1207,7 @@ function renderLabels() {
         checkbox.type = 'checkbox';
         checkbox.className = 'label-checkbox';
         checkbox.value = lbl;
+        checkbox.checked = selectedLabels.has(lbl);
 
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
@@ -1364,6 +1397,18 @@ function updateResultsSummary(filteredCount, query) {
         'is-filtered',
         filteredCount !== contacts.length || contexts.length > 0
     );
+    updateMobileFilterSummary(filteredCount);
+}
+
+function updateMobileFilterSummary(filteredCount) {
+    const selectedCount = selectedLabels.size;
+    mobileFilterResultCount.textContent =
+        `${filteredCount.toLocaleString()} ${filteredCount === 1 ? 'result' : 'results'}`;
+    mobileFilterSummary.textContent =
+        `${filteredCount.toLocaleString()} matching ${filteredCount === 1 ? 'contact' : 'contacts'}`;
+    mobileSelectedLabelCount.hidden = selectedCount === 0;
+    mobileSelectedLabelCount.textContent =
+        `${selectedCount.toLocaleString()} selected`;
 }
 
 // Run init

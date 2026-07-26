@@ -94,16 +94,43 @@
     <main class="app-layout">
         <!-- Sidebar for Labels -->
         <aside class="sidebar" id="sidebar">
+            <button id="mobileLabelsToggle" class="mobile-labels-toggle" type="button"
+                    aria-expanded="false" aria-controls="labelsList">
+                <span>
+                    <i class="ph ph-funnel"></i>
+                    Labels
+                    <span id="mobileSelectedLabelCount" class="mobile-selected-count" hidden>0 selected</span>
+                </span>
+                <span>
+                    <strong id="mobileFilterResultCount">0 results</strong>
+                    <i class="ph ph-caret-right"></i>
+                </span>
+            </button>
             <div class="sidebar-header">
                 <h2>
                     Labels
                     <span id="sidebarResultCount" class="sidebar-result-count" aria-label="Matching contacts">0</span>
                 </h2>
-                <button class="btn-secondary btn-small" id="clearFiltersBtn" disabled>Clear</button>
+                <div class="sidebar-header-actions">
+                    <button class="btn-secondary btn-small" id="clearFiltersBtn" disabled>Clear</button>
+                    <button id="closeMobileLabelsBtn" class="icon-button mobile-labels-close"
+                            type="button" aria-label="Close label filters">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mobile-label-search">
+                <i class="ph ph-magnifying-glass"></i>
+                <input id="labelSearchInput" type="search" placeholder="Search labels..."
+                       aria-label="Search labels">
             </div>
             <div class="labels-list" id="labelsList">
                 <p class="empty-state-text">No labels loaded</p>
                 <!-- Checkboxes will be injected here -->
+            </div>
+            <div class="mobile-labels-footer">
+                <span id="mobileFilterSummary">0 matching contacts</span>
+                <button id="doneMobileLabelsBtn" class="btn-primary" type="button">Done</button>
             </div>
             <div id="storageInfo" class="storage-info">
                 Contacts are stored only on this device.

@@ -208,6 +208,13 @@ body {
     padding: 0.2rem 0.6rem;
 }
 
+.mobile-labels-toggle,
+.mobile-label-search,
+.mobile-labels-footer,
+.mobile-labels-close {
+    display: none;
+}
+
 /* --- Dropdown --- */
 .dropdown {
     position: relative;
@@ -1085,30 +1092,163 @@ body {
         border-bottom: 1px solid var(--border-color);
     }
 
-    .sidebar-header {
-        padding: 0.75rem 1rem 0.25rem;
+    .sidebar > .sidebar-header,
+    .sidebar > .mobile-label-search,
+    .sidebar > .labels-list,
+    .sidebar > .mobile-labels-footer {
+        display: none;
     }
 
-    .labels-list {
-        flex-direction: row;
-        gap: 0.4rem;
-        padding: 0.4rem 1rem 0.75rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        overscroll-behavior-x: contain;
-        scrollbar-width: thin;
+    .mobile-labels-toggle {
+        width: 100%;
+        min-height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.7rem 1rem;
+        border: 0;
+        background: var(--bg-surface);
+        color: var(--text-primary);
+        font: inherit;
+        cursor: pointer;
     }
 
-    .label-item {
-        min-height: 40px;
+    .mobile-labels-toggle > span {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .mobile-labels-toggle > span:last-child {
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
+
+    .mobile-selected-count {
+        padding: 0.1rem 0.4rem;
+        border-radius: 999px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        font-size: 0.68rem;
+        font-weight: 600;
+    }
+
+    .sidebar.mobile-expanded {
+        position: fixed;
+        z-index: 100;
+        inset: 0;
+        width: 100%;
+        height: 100dvh;
+        display: flex;
+        background: var(--bg-surface);
+        border: 0;
+    }
+
+    .sidebar.mobile-expanded .mobile-labels-toggle {
+        display: none;
+    }
+
+    .sidebar.mobile-expanded > .sidebar-header {
+        display: flex;
+        flex-shrink: 0;
+        padding:
+            max(0.9rem, env(safe-area-inset-top))
+            1rem
+            0.75rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .sidebar.mobile-expanded .mobile-labels-close {
+        display: grid;
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .sidebar.mobile-expanded > .mobile-label-search {
+        position: relative;
+        display: block;
+        flex-shrink: 0;
+        padding: 0.75rem 1rem;
+    }
+
+    .mobile-label-search > i {
+        position: absolute;
+        left: 1.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+    }
+
+    .mobile-label-search input {
+        width: 100%;
+        min-height: 44px;
+        padding: 0.65rem 0.75rem 0.65rem 2.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 999px;
+        background: var(--bg-page);
+        font: inherit;
+        font-size: 1rem;
+    }
+
+    .mobile-label-search input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+    }
+
+    .sidebar.mobile-expanded > .labels-list {
+        min-height: 0;
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.25rem 1rem 1rem;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+    }
+
+    .sidebar.mobile-expanded .label-item {
+        width: 100%;
+        min-height: 48px;
         flex: 0 0 auto;
-        padding: 0.45rem 0.65rem;
+        padding: 0.65rem 0.75rem;
         border: 1px solid var(--border-color);
         background: var(--bg-page);
     }
 
-    .label-text {
-        max-width: 180px;
+    .sidebar.mobile-expanded .label-text {
+        max-width: none;
+        white-space: normal;
+    }
+
+    .sidebar.mobile-expanded > .mobile-labels-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-shrink: 0;
+        padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-surface);
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        box-shadow: 0 -4px 12px rgb(15 23 42 / 0.06);
+    }
+
+    .mobile-labels-footer .btn-primary {
+        min-width: 100px;
+        min-height: 44px;
+        justify-content: center;
     }
 
     .storage-info {
