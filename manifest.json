@@ -1,6 +1,6 @@
 {
-  "name": "Contacts Searcher",
-  "short_name": "Contacts",
+  "name": "ConTags",
+  "short_name": "ConTags",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f8fafc",

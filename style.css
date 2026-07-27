@@ -210,8 +210,11 @@ body {
 
 .mobile-labels-toggle,
 .mobile-label-search,
-.mobile-labels-footer,
-.mobile-labels-close {
+.mobile-labels-footer {
+    display: none;
+}
+
+.sidebar .mobile-labels-close {
     display: none;
 }
 
@@ -412,6 +415,7 @@ body {
 .map-dialog {
     width: min(1100px, calc(100% - 2rem));
     height: min(800px, calc(100% - 2rem));
+    margin: auto;
     padding: 0;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
@@ -522,6 +526,47 @@ body {
 .contact-marker-tip.marker-synced {
     border-color: #22c55e;
     background: #22c55e;
+}
+
+.contact-cluster {
+    width: 48px !important;
+    height: 48px !important;
+    display: grid !important;
+    place-items: center;
+    border: 3px solid white;
+    border-radius: 10px;
+    background: #22c55e !important;
+    color: white;
+    box-shadow: 0 3px 10px rgb(15 23 42 / 0.35);
+    font-size: 1.15rem !important;
+    font-weight: 700;
+    line-height: 1 !important;
+    text-align: center;
+    transition: transform var(--transition-fast);
+}
+
+.contact-cluster span {
+    width: 100%;
+    height: 100%;
+    display: grid !important;
+    place-items: center;
+    margin: 0 !important;
+    padding: 0 !important;
+    font: inherit !important;
+    line-height: 1 !important;
+    text-align: center;
+}
+
+.contact-cluster:hover {
+    transform: scale(1.08);
+}
+
+.contact-cluster-medium {
+    background: #16a34a !important;
+}
+
+.contact-cluster-large {
+    background: #15803d !important;
 }
 
 .unmapped-contacts {
