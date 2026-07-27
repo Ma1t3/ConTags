@@ -27,6 +27,8 @@
     
     <!-- Google Identity Services for OAuth -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Microsoft Authentication Library for browser-based OAuth (PKCE) -->
+    <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js" defer></script>
     
     <link rel="manifest" href="./manifest.json">
 </head>
@@ -43,6 +45,15 @@
                         <i class="ph ph-arrows-clockwise"></i>
                         Sync with Google
                         <span id="syncCount" class="button-count" hidden></span>
+                    </button>
+                    <button id="syncMicrosoftBtn" class="dropdown-item" type="button" role="menuitem" disabled>
+                        <i class="ph ph-arrows-clockwise"></i>
+                        Sync with Microsoft
+                        <span id="microsoftSyncCount" class="button-count" hidden></span>
+                    </button>
+                    <button id="exportVcardBtn" class="dropdown-item" type="button" role="menuitem" disabled>
+                        <i class="ph ph-export"></i>
+                        Export vCard
                     </button>
                     <button id="openMapBtn" class="dropdown-item" type="button" role="menuitem">
                         <i class="ph ph-map-trifold"></i>
@@ -83,9 +94,18 @@
                         <i class="ph ph-google-logo"></i>
                         From Google Contacts
                     </button>
+                    <button id="microsoftImportBtn" class="dropdown-item" type="button" role="menuitem">
+                        <i class="ph ph-microsoft-outlook-logo"></i>
+                        From Microsoft Outlook
+                    </button>
+                    <label class="dropdown-item" for="vcardFileInput" role="menuitem">
+                        <i class="ph ph-address-book"></i>
+                        From vCard file
+                    </label>
                 </div>
             </div>
             <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+            <input type="file" id="vcardFileInput" accept=".vcf,text/vcard" style="display: none;">
 
             <button id="createContactBtn" class="btn-primary btn-create" type="button">
                 <i class="ph ph-user-plus"></i>
@@ -116,6 +136,10 @@
                     <span id="sidebarResultCount" class="sidebar-result-count" aria-label="Matching contacts">0</span>
                 </h2>
                 <div class="sidebar-header-actions">
+                    <button class="icon-button add-label-group-btn" id="addLabelGroupBtn"
+                            type="button" aria-label="Create label group" title="Create label group">
+                        <i class="ph ph-folder-plus"></i>
+                    </button>
                     <button class="btn-secondary btn-small" id="clearFiltersBtn" disabled>Clear</button>
                     <button id="closeMobileLabelsBtn" class="icon-button mobile-labels-close"
                             type="button" aria-label="Close label filters">

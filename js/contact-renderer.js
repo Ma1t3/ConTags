@@ -10,46 +10,130 @@ export function createContactRenderer({
     getContacts,
     getLabels,
     getSelectedLabels,
-    openContactDetails
+    openContactDetails,
+    getLabelGroups,
+    getUngroupedCollapsed,
+    moveLabelToGroup,
+    toggleLabelGroup
 }) {
     function renderLabels() {
         const labels = getLabels();
         const selectedLabels = getSelectedLabels();
         labelsList.innerHTML = '';
         const labelQuery = (labelSearchInput.value || '').trim().toLowerCase();
-        const sortedLabels = Array.from(labels)
-            .sort()
-            .filter(label => label.toLowerCase().includes(labelQuery));
+        const sortedLabels = Array.from(labels).sort((a, b) => a.localeCompare(b));
+        const groups = getLabelGroups();
 
-        if (sortedLabels.length === 0) {
+        if (!sortedLabels.some(label => label.toLowerCase().includes(labelQuery))) {
             labelsList.innerHTML = `<p class="empty-state-text">${
                 labelQuery ? 'No matching labels.' : 'No labels found.'
             }</p>`;
             return;
         }
 
-        sortedLabels.forEach(label => {
-            const labelElement = document.createElement('label');
-            labelElement.className = 'label-item';
-
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'label-checkbox';
-            checkbox.value = label;
-            checkbox.checked = selectedLabels.has(label);
-            checkbox.addEventListener('change', event => {
-                if (event.target.checked) selectedLabels.add(label);
-                else selectedLabels.delete(label);
-                renderContacts();
-            });
-
-            const text = document.createElement('span');
-            text.className = 'label-text';
-            text.textContent = label;
-            text.title = label;
-            labelElement.append(checkbox, text);
-            labelsList.appendChild(labelElement);
+        const assigned = new Set(groups.flatMap(group => group.labels));
+        groups.forEach(group => {
+            const groupLabels = sortedLabels.filter(label =>
+                group.labels.includes(label) && label.toLowerCase().includes(labelQuery)
+            );
+            if (labelQuery && !groupLabels.length) return;
+            labelsList.appendChild(buildLabelGroup(group, groupLabels, selectedLabels, labelQuery));
         });
+
+        const ungroupedLabels = sortedLabels.filter(label =>
+            !assigned.has(label) && label.toLowerCase().includes(labelQuery)
+        );
+        if (ungroupedLabels.length || !labelQuery) {
+            labelsList.appendChild(buildLabelGroup(
+                {
+                    id: '',
+                    name: 'Ungrouped',
+                    labels: ungroupedLabels,
+                    collapsed: getUngroupedCollapsed()
+                },
+                ungroupedLabels,
+                selectedLabels,
+                labelQuery
+            ));
+        }
+    }
+
+    function buildLabelGroup(group, groupLabels, selectedLabels, labelQuery) {
+        const section = document.createElement('section');
+        section.className = 'label-group';
+        section.dataset.groupId = group.id;
+        section.addEventListener('dragover', event => {
+            event.preventDefault();
+            section.classList.add('drag-over');
+        });
+        section.addEventListener('dragleave', event => {
+            if (!section.contains(event.relatedTarget)) section.classList.remove('drag-over');
+        });
+        section.addEventListener('drop', event => {
+            event.preventDefault();
+            section.classList.remove('drag-over');
+            const label = event.dataTransfer.getData('text/plain');
+            if (label) moveLabelToGroup(label, group.id);
+        });
+
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'label-group-header';
+        header.setAttribute('aria-expanded', String(!group.collapsed));
+        header.innerHTML = `
+            <span>
+                <i class="ph ph-caret-${group.collapsed ? 'right' : 'down'}"></i>
+                <i class="ph ${group.id ? 'ph-folder' : 'ph-tray'}"></i>
+                <strong></strong>
+            </span>
+            <span class="label-group-count">${groupLabels.length}</span>`;
+        header.querySelector('strong').textContent = group.name;
+        header.addEventListener('click', () => {
+            toggleLabelGroup(group.id);
+        });
+        section.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'label-group-body';
+        body.hidden = Boolean(group.collapsed && !labelQuery);
+        groupLabels.forEach(label => body.appendChild(buildLabelItem(label, selectedLabels)));
+        if (!groupLabels.length && !labelQuery) {
+            body.innerHTML = '<p class="label-group-empty">Drop labels here</p>';
+        }
+        section.appendChild(body);
+        return section;
+    }
+
+    function buildLabelItem(label, selectedLabels) {
+        const labelElement = document.createElement('label');
+        labelElement.className = 'label-item';
+        labelElement.draggable = true;
+        labelElement.addEventListener('dragstart', event => {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', label);
+            labelElement.classList.add('is-dragging');
+        });
+        labelElement.addEventListener('dragend', () => labelElement.classList.remove('is-dragging'));
+
+        const dragHandle = document.createElement('i');
+        dragHandle.className = 'ph ph-dots-six-vertical label-drag-handle';
+        dragHandle.setAttribute('aria-hidden', 'true');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'label-checkbox';
+        checkbox.value = label;
+        checkbox.checked = selectedLabels.has(label);
+        checkbox.addEventListener('change', event => {
+            if (event.target.checked) selectedLabels.add(label);
+            else selectedLabels.delete(label);
+            renderContacts();
+        });
+        const text = document.createElement('span');
+        text.className = 'label-text';
+        text.textContent = label;
+        text.title = label;
+        labelElement.append(dragHandle, checkbox, text);
+        return labelElement;
     }
 
     function renderContacts() {
@@ -136,24 +220,27 @@ export function createContactRenderer({
     }
 
     function buildSyncIndicator(contact) {
+        const provider = contact.syncProvider === 'microsoft'
+            ? 'Microsoft'
+            : (contact.syncProvider === 'google' ? 'Google' : 'a provider');
         if (contact.syncError) {
             return `
                 <span class="card-sync-indicator sync-error" role="img"
-                      aria-label="Google sync failed" title="${escapeHtml(contact.syncError)}">
+                      aria-label="${provider} sync failed" title="${escapeHtml(contact.syncError)}">
                     <i class="ph ph-arrows-clockwise"></i>
                 </span>`;
         }
         if (['pending-create', 'pending-update', 'pending-photo'].includes(contact.syncStatus)) {
             return `
                 <span class="card-sync-indicator sync-pending" role="img"
-                      aria-label="Pending Google sync" title="Pending Google sync">
+                      aria-label="Pending ${provider} sync" title="Pending ${provider} sync">
                     <i class="ph ph-arrows-clockwise"></i>
                 </span>`;
         }
         if (contact.syncStatus === 'synced') {
             return `
                 <span class="card-sync-indicator sync-complete" role="img"
-                      aria-label="Synced with Google" title="Synced with Google">
+                      aria-label="Synced with ${provider}" title="Synced with ${provider}">
                     <i class="ph ph-check"></i>
                 </span>`;
         }

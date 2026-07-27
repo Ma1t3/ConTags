@@ -14,13 +14,13 @@ function openDatabase() {
     });
 }
 
-export async function writeContacts(contacts, source) {
+export async function writeContacts(contacts, source, labelGroups = [], labelUi = {}) {
     const savedAt = new Date().toISOString();
     const db = await openDatabase();
     await new Promise((resolve, reject) => {
         const transaction = db.transaction(DATABASE.storeName, 'readwrite');
         transaction.objectStore(DATABASE.storeName).put(
-            { contacts, source, savedAt },
+            { contacts, source, savedAt, labelGroups, labelUi },
             DATABASE.contactsKey
         );
         transaction.oncomplete = resolve;

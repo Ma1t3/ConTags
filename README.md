@@ -22,3 +22,20 @@ This application is built using standard, framework-free web technologies:
 - Vanilla JavaScript
 - [PapaParse](https://www.papaparse.com/) (For CSV Data Extraction)
 - [Phosphor Icons](https://phosphoricons.com/)
+
+## Microsoft Outlook sync
+
+ConTags can import and synchronize contacts through Microsoft Graph. Before using it:
+
+1. Register an application in Microsoft Entra ID.
+2. Enable personal Microsoft accounts and work/school accounts.
+3. Add the deployed ConTags URL as a **Single-page application** redirect URI.
+4. Add the delegated Microsoft Graph permission `Contacts.ReadWrite`.
+5. Put the application (client) ID in `MICROSOFT_CLIENT_ID` in `js/config.js`.
+
+No client secret is used or stored in this browser application.
+
+## Portable contacts
+
+The import menu accepts vCard (`.vcf`) files, and the settings menu can export all
+locally stored contacts as a vCard file.

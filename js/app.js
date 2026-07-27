@@ -1,4 +1,4 @@
-import { GOOGLE_CLIENT_ID } from './config.js';
+import { GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID } from './config.js';
 import {
     csvFileInput, searchInput, labelsList, contactsGrid, statusMessage,
     clearFiltersBtn, googleImportBtn, deleteContactsBtn, storageInfo,
@@ -7,7 +7,9 @@ import {
     contactPhotoPreview, syncGoogleBtn, syncCount, contactDialogTitle,
     contactDialogDescription, contactSubmitLabel,
     openMapBtn, resultsSummary, sidebarResultCount, contactDetailsDialog,
-    closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn
+    closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn,
+    microsoftImportBtn, syncMicrosoftBtn, microsoftSyncCount,
+    vcardFileInput, exportVcardBtn, addLabelGroupBtn
 } from './dom.js';
 import { preparePhoto, getPhotoUrl } from './image-utils.js';
 import { escapeHtml, getInitials, normalizeAddress } from './text-utils.js';
@@ -16,6 +18,11 @@ import {
     createGoogleContact, updateGoogleContact, uploadGoogleContactPhoto,
     fetchGooglePhoto, runWithConcurrency
 } from './google-api.js';
+import {
+    fetchMicrosoftContacts, microsoftContactToLocal,
+    createMicrosoftContact, updateMicrosoftContact
+} from './microsoft-api.js';
+import { parseVcards, exportVcards } from './vcard.js';
 import { parseCsvContacts } from './csv-utils.js';
 import { initializeContactMap } from './contact-map.js';
 import { initializeMenus, closeImportMenu, closeSettingsMenu } from './ui-menus.js';
@@ -30,10 +37,13 @@ let lastUpdated = null;
 let previewObjectUrl = null;
 let editingContact = null;
 let viewingContact = null;
+let labelGroups = [];
+let ungroupedCollapsed = false;
 
 // Google OAuth Data
 let tokenClient;
 let googleAuthIntent = 'import';
+let microsoftClient;
 
 // Debounce for search
 let searchTimeout;
@@ -42,13 +52,19 @@ const contactRenderer = createContactRenderer({
     getContacts: () => contacts,
     getLabels: () => allLabels,
     getSelectedLabels: () => selectedLabels,
-    openContactDetails
+    openContactDetails,
+    getLabelGroups: () => labelGroups,
+    getUngroupedCollapsed: () => ungroupedCollapsed,
+    moveLabelToGroup,
+    toggleLabelGroup
 });
 const { renderLabels, renderContacts } = contactRenderer;
 
 // Initialization
 async function init() {
     csvFileInput.addEventListener('change', handleFileUpload);
+    vcardFileInput.addEventListener('change', handleVcardUpload);
+    exportVcardBtn.addEventListener('click', exportContactsAsVcard);
     deleteContactsBtn.addEventListener('click', deleteLocalContacts);
     createContactBtn.addEventListener('click', () => openContactDialog());
     closeContactDialogBtn.addEventListener('click', closeContactDialog);
@@ -56,6 +72,8 @@ async function init() {
     contactForm.addEventListener('submit', createContact);
     contactPhotoInput.addEventListener('change', previewSelectedPhoto);
     syncGoogleBtn.addEventListener('click', requestGoogleSync);
+    syncMicrosoftBtn.addEventListener('click', requestMicrosoftSync);
+    microsoftImportBtn.addEventListener('click', requestMicrosoftImport);
     const contactMap = initializeContactMap({
         getContacts: () => contacts,
         saveContacts,
@@ -82,6 +100,7 @@ async function init() {
         renderLabels();
         renderContacts();
     });
+    addLabelGroupBtn.addEventListener('click', createLabelGroup);
 
     // Initialize Google OAuth Token Client if library is loaded
     if (typeof google !== 'undefined') {
@@ -90,6 +109,8 @@ async function init() {
         // Fallback wait for the external script
         window.addEventListener('load', initGoogleClient);
     }
+    if (typeof msal !== 'undefined') initMicrosoftClient();
+    else window.addEventListener('load', initMicrosoftClient);
 
     await restoreContacts();
 }
@@ -101,7 +122,7 @@ function openContactDialog(contact = null) {
     editingContact = contact;
     contactDialogTitle.textContent = contact ? 'Edit contact' : 'Create contact';
     contactDialogDescription.textContent = contact
-        ? 'Changes are saved locally and can be synced with Google.'
+        ? 'Changes are saved locally and can be synced with its contact provider.'
         : 'Add a contact to your locally stored list.';
     contactSubmitLabel.textContent = contact ? 'Save changes' : 'Save contact';
 
@@ -137,18 +158,21 @@ function openContactDetails(contact) {
 
     let syncText = 'Local only';
     let syncClass = 'detail-sync-local';
+    const syncProviderName = contact.syncProvider === 'microsoft' ? 'Microsoft' : 'Google';
     if (contact.syncError) {
-        syncText = 'Google sync failed';
+        syncText = `${syncProviderName} sync failed`;
         syncClass = 'detail-sync-error';
     } else if (
         contact.syncStatus === 'pending-create' ||
         contact.syncStatus === 'pending-update' ||
         contact.syncStatus === 'pending-photo'
     ) {
-        syncText = 'Pending Google sync';
+        syncText = contact.syncProvider
+            ? `Pending ${syncProviderName} sync`
+            : 'Pending provider sync';
         syncClass = 'detail-sync-pending';
     } else if (contact.syncStatus === 'synced') {
-        syncText = 'Synced with Google';
+        syncText = `Synced with ${syncProviderName}`;
         syncClass = 'detail-sync-complete';
     }
 
@@ -247,6 +271,7 @@ async function createContact(event) {
         resourceName: '',
         etag: '',
         googleMetadata: null,
+        syncProvider: '',
         syncStatus: 'pending-create',
         syncError: ''
     };
@@ -262,7 +287,7 @@ async function createContact(event) {
     }
 
     if (editingContact) {
-        if (!contact.resourceName) {
+        if (!contact.resourceName && !contact.remoteId) {
             contact.syncStatus = 'pending-create';
         } else if (contact.syncStatus !== 'pending-create') {
             contact.syncStatus = 'pending-update';
@@ -354,7 +379,12 @@ function applyCachedLocation(contact, cache) {
 
 // Local persistence
 async function saveContacts(source) {
-    const savedAt = await writeContacts(contacts, source);
+    const savedAt = await writeContacts(
+        contacts,
+        source,
+        labelGroups,
+        { ungroupedCollapsed }
+    );
     currentDataSource = source;
     lastUpdated = savedAt;
     updateStorageInfo();
@@ -369,6 +399,14 @@ async function restoreContacts() {
         }
 
         contacts = savedData.contacts;
+        labelGroups = sanitizeLabelGroups(savedData.labelGroups);
+        ungroupedCollapsed = Boolean(
+            savedData.labelUi && savedData.labelUi.ungroupedCollapsed
+        );
+        // Migrate contacts stored before provider-aware synchronization.
+        contacts.forEach(contact => {
+            if (!contact.syncProvider && contact.resourceName) contact.syncProvider = 'google';
+        });
         currentDataSource = savedData.source || '';
         lastUpdated = savedData.savedAt || null;
         rebuildLabels();
@@ -391,6 +429,8 @@ async function deleteLocalContacts() {
         await removeContacts();
 
         contacts = [];
+        labelGroups = [];
+        ungroupedCollapsed = false;
         allLabels.clear();
         selectedLabels.clear();
         currentDataSource = '';
@@ -423,10 +463,81 @@ function rebuildLabels() {
     });
 }
 
+function sanitizeLabelGroups(value) {
+    if (!Array.isArray(value)) return [];
+    const seenLabels = new Set();
+    return value.filter(group =>
+        group && typeof group.id === 'string' && typeof group.name === 'string'
+    ).map(group => ({
+        id: group.id,
+        name: group.name.trim() || 'Untitled group',
+        collapsed: Boolean(group.collapsed),
+        labels: Array.isArray(group.labels)
+            ? group.labels.filter(label => {
+                if (typeof label !== 'string' || seenLabels.has(label)) return false;
+                seenLabels.add(label);
+                return true;
+            })
+            : []
+    }));
+}
+
+async function createLabelGroup() {
+    const proposedName = prompt('Name the new label group:');
+    if (proposedName === null) return;
+    const name = proposedName.trim();
+    if (!name) return;
+    if (labelGroups.some(group => group.name.toLowerCase() === name.toLowerCase())) {
+        alert('A label group with that name already exists.');
+        return;
+    }
+    const id = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `group-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    labelGroups.push({ id, name, labels: [], collapsed: false });
+    renderLabels();
+    await persistLabelGroups();
+}
+
+async function moveLabelToGroup(label, groupId) {
+    labelGroups.forEach(group => {
+        group.labels = group.labels.filter(item => item !== label);
+    });
+    const target = labelGroups.find(group => group.id === groupId);
+    if (target && !target.labels.includes(label)) target.labels.push(label);
+    renderLabels();
+    await persistLabelGroups();
+}
+
+async function toggleLabelGroup(groupId) {
+    if (!groupId) {
+        ungroupedCollapsed = !ungroupedCollapsed;
+        renderLabels();
+        await persistLabelGroups();
+        return;
+    }
+    const group = labelGroups.find(item => item.id === groupId);
+    if (!group) return;
+    group.collapsed = !group.collapsed;
+    renderLabels();
+    await persistLabelGroups();
+}
+
+async function persistLabelGroups() {
+    try {
+        await saveContacts(currentDataSource || 'manual');
+    } catch (error) {
+        console.error('Could not save label groups:', error);
+        statusMessage.textContent = 'The label groups could not be stored locally.';
+        statusMessage.style.display = 'block';
+    }
+}
+
 function enableContactsUi() {
     searchInput.disabled = false;
     clearFiltersBtn.disabled = false;
     deleteContactsBtn.disabled = false;
+    exportVcardBtn.disabled = false;
 }
 
 function updateStorageInfo() {
@@ -439,6 +550,8 @@ function updateStorageInfo() {
 
     const sourceNames = {
         google: 'Google Contacts',
+        microsoft: 'Microsoft Outlook',
+        vcard: 'vCard',
         csv: 'CSV',
         manual: 'Created locally'
     };
@@ -449,19 +562,140 @@ function updateStorageInfo() {
     updateSyncUi();
 }
 
-function getPendingSyncContacts() {
+function getPendingSyncContacts(provider = '') {
     return contacts.filter(contact =>
-        contact.syncStatus === 'pending-create' ||
-        contact.syncStatus === 'pending-update' ||
-        contact.syncStatus === 'pending-photo'
+        (!provider || !contact.syncProvider || contact.syncProvider === provider) &&
+        (
+            contact.syncStatus === 'pending-create' ||
+            contact.syncStatus === 'pending-update' ||
+            contact.syncStatus === 'pending-photo'
+        )
     );
 }
 
 function updateSyncUi() {
-    const pendingCount = getPendingSyncContacts().length;
-    syncGoogleBtn.disabled = pendingCount === 0;
-    syncCount.hidden = pendingCount === 0;
-    syncCount.textContent = pendingCount;
+    const googleCount = getPendingSyncContacts('google').length;
+    const microsoftCount = getPendingSyncContacts('microsoft').length;
+    syncGoogleBtn.disabled = googleCount === 0;
+    syncCount.hidden = googleCount === 0;
+    syncCount.textContent = googleCount;
+    syncMicrosoftBtn.disabled = microsoftCount === 0;
+    microsoftSyncCount.hidden = microsoftCount === 0;
+    microsoftSyncCount.textContent = microsoftCount;
+    exportVcardBtn.disabled = contacts.length === 0;
+}
+
+// Microsoft OAuth and Graph handling
+function initMicrosoftClient() {
+    if (typeof msal === 'undefined' || MICROSOFT_CLIENT_ID === 'YOUR_MICROSOFT_CLIENT_ID') return;
+    microsoftClient = new msal.PublicClientApplication({
+        auth: {
+            clientId: MICROSOFT_CLIENT_ID,
+            authority: 'https://login.microsoftonline.com/common',
+            redirectUri: `${window.location.origin}${window.location.pathname}`
+        },
+        cache: { cacheLocation: 'localStorage' }
+    });
+}
+
+async function getMicrosoftAccessToken() {
+    if (MICROSOFT_CLIENT_ID === 'YOUR_MICROSOFT_CLIENT_ID') {
+        throw new Error('Microsoft sync is not configured yet. Add the Entra client ID in js/config.js.');
+    }
+    if (!microsoftClient) initMicrosoftClient();
+    if (!microsoftClient) throw new Error('Microsoft sign-in is not ready. Please reload and try again.');
+
+    const scopes = ['Contacts.ReadWrite'];
+    let account = microsoftClient.getAllAccounts()[0];
+    if (!account) {
+        const login = await microsoftClient.loginPopup({ scopes });
+        account = login.account;
+    }
+    try {
+        return (await microsoftClient.acquireTokenSilent({ scopes, account })).accessToken;
+    } catch (error) {
+        return (await microsoftClient.acquireTokenPopup({ scopes, account })).accessToken;
+    }
+}
+
+async function requestMicrosoftImport() {
+    closeImportMenu();
+    statusMessage.textContent = 'Connecting to Microsoft...';
+    statusMessage.style.display = 'block';
+    try {
+        const accessToken = await getMicrosoftAccessToken();
+        await importMicrosoftContacts(accessToken);
+    } catch (error) {
+        statusMessage.textContent = `Microsoft authorization failed: ${error.message}`;
+    }
+}
+
+async function importMicrosoftContacts(accessToken) {
+    statusMessage.textContent = 'Fetching Microsoft Outlook contacts...';
+    const locationCache = buildLocationCache();
+    const remoteContacts = await fetchMicrosoftContacts(accessToken);
+    contacts = remoteContacts.map(microsoftContactToLocal);
+    contacts.forEach(contact => applyCachedLocation(contact, locationCache));
+    contacts.sort((a, b) => a.name.localeCompare(b.name));
+    selectedLabels.clear();
+    rebuildLabels();
+    enableContactsUi();
+    renderLabels();
+    renderContacts();
+    await persistImportedContacts('microsoft');
+}
+
+async function requestMicrosoftSync() {
+    closeSettingsMenu();
+    try {
+        const accessToken = await getMicrosoftAccessToken();
+        await syncPendingMicrosoftContacts(accessToken);
+    } catch (error) {
+        statusMessage.textContent = `Microsoft authorization failed: ${error.message}`;
+        statusMessage.style.display = 'block';
+        updateSyncUi();
+    }
+}
+
+async function syncPendingMicrosoftContacts(accessToken) {
+    const pendingContacts = getPendingSyncContacts('microsoft');
+    if (!pendingContacts.length) return;
+    syncMicrosoftBtn.disabled = true;
+    let syncedCount = 0;
+    let failedCount = 0;
+
+    for (const contact of pendingContacts) {
+        contact.syncProvider = 'microsoft';
+        contact.syncError = '';
+        statusMessage.textContent =
+            `Syncing with Microsoft (${syncedCount + failedCount + 1}/${pendingContacts.length})...`;
+        statusMessage.style.display = 'block';
+        try {
+            if (contact.syncStatus === 'pending-create' || !contact.remoteId) {
+                const created = await createMicrosoftContact(contact, accessToken);
+                contact.remoteId = created.id;
+                contact.microsoftChangeKey = created.changeKey || '';
+            } else {
+                const updated = await updateMicrosoftContact(contact, accessToken);
+                contact.microsoftChangeKey =
+                    (updated && updated.changeKey) || contact.microsoftChangeKey;
+            }
+            // Microsoft contact photos require a separate binary endpoint. Keep the
+            // locally stored photo without falsely marking it as remotely uploaded.
+            contact.syncStatus = 'synced';
+            contact.lastSyncedAt = new Date().toISOString();
+            syncedCount += 1;
+        } catch (error) {
+            contact.syncError = error.message;
+            failedCount += 1;
+        }
+        await saveContacts(currentDataSource || 'manual');
+    }
+    renderContacts();
+    updateSyncUi();
+    statusMessage.textContent = failedCount
+        ? `${syncedCount} contact(s) synced; ${failedCount} Microsoft sync(s) failed.`
+        : `${syncedCount} contact(s) synced with Microsoft.`;
 }
 
 // Google OAuth Initialization & Handling
@@ -511,7 +745,7 @@ function requestGoogleSync() {
 }
 
 async function syncPendingContacts(accessToken) {
-    const pendingContacts = getPendingSyncContacts();
+    const pendingContacts = getPendingSyncContacts('google');
     if (pendingContacts.length === 0) return;
 
     syncGoogleBtn.disabled = true;
@@ -519,6 +753,7 @@ async function syncPendingContacts(accessToken) {
     let failedCount = 0;
 
     for (const contact of pendingContacts) {
+        contact.syncProvider = 'google';
         statusMessage.textContent =
             `Syncing with Google (${syncedCount + failedCount + 1}/${pendingContacts.length})...`;
         statusMessage.style.display = 'block';
@@ -676,7 +911,8 @@ async function processGoogleData(connections, labelMap) {
             googlePhotoUrl,
             resourceName: connection.resourceName || '',
             etag: connection.etag || '',
-            googleMetadata: connection.metadata || null,
+        googleMetadata: connection.metadata || null,
+            syncProvider: 'google',
             syncStatus: 'synced',
             syncError: '',
             lastSyncedAt: new Date().toISOString()
@@ -753,11 +989,57 @@ function handleFileUpload(event) {
     });
 }
 
+async function handleVcardUpload(event) {
+    closeImportMenu();
+    const file = event.target.files[0];
+    if (!file) return;
+    statusMessage.textContent = 'Parsing vCard file...';
+    statusMessage.style.display = 'block';
+    try {
+        const parsedContacts = parseVcards(await file.text());
+        if (!parsedContacts.length) throw new Error('No contacts were found in this vCard file.');
+        const locationCache = buildLocationCache();
+        contacts = parsedContacts;
+        contacts.forEach(contact => applyCachedLocation(contact, locationCache));
+        contacts.sort((a, b) => a.name.localeCompare(b.name));
+        selectedLabels.clear();
+        rebuildLabels();
+        enableContactsUi();
+        renderLabels();
+        renderContacts();
+        await persistImportedContacts('vcard');
+    } catch (error) {
+        statusMessage.textContent = `Could not import vCard: ${error.message}`;
+        statusMessage.style.display = 'block';
+    } finally {
+        vcardFileInput.value = '';
+    }
+}
+
+function exportContactsAsVcard() {
+    closeSettingsMenu();
+    if (!contacts.length) return;
+    const blob = new Blob([exportVcards(contacts)], { type: 'text/vcard;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `contags-${new Date().toISOString().slice(0, 10)}.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 // Data Processing (Matches Python Logic)
 async function processParsedData(data) {
     const locationCache = buildLocationCache();
     const parsed = parseCsvContacts(data);
     contacts = parsed.contacts;
+    contacts.forEach(contact => {
+        contact.syncProvider = '';
+        contact.syncStatus = 'pending-create';
+        contact.syncError = '';
+    });
     allLabels.clear();
     parsed.labels.forEach(label => allLabels.add(label));
     selectedLabels.clear();

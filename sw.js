@@ -1,4 +1,4 @@
-const CACHE_NAME = 'contags-v36';
+const CACHE_NAME = 'contags-v39';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,6 +11,8 @@ const ASSETS_TO_CACHE = [
   './js/image-utils.js',
   './js/storage.js',
   './js/google-api.js',
+  './js/microsoft-api.js',
+  './js/vcard.js',
   './js/csv-utils.js',
   './js/contact-map.js',
   './js/ui-menus.js',
