@@ -9,8 +9,9 @@ import {
     openMapBtn, resultsSummary, sidebarResultCount, contactDetailsDialog,
     closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn,
     microsoftImportBtn, syncMicrosoftBtn, microsoftSyncCount,
-    vcardFileInput, exportVcardBtn, addLabelGroupBtn
+    vcardFileInput, exportVcardBtn, addLabelGroupBtn, appVersion
 } from './dom.js';
+import { APP_VERSION } from './version.js';
 import { preparePhoto, getPhotoUrl } from './image-utils.js';
 import { escapeHtml, getInitials, normalizeAddress } from './text-utils.js';
 import { writeContacts, readContacts, removeContacts } from './storage.js';
@@ -62,6 +63,7 @@ const { renderLabels, renderContacts } = contactRenderer;
 
 // Initialization
 async function init() {
+    appVersion.textContent = `v${APP_VERSION}`;
     csvFileInput.addEventListener('change', handleFileUpload);
     vcardFileInput.addEventListener('change', handleVcardUpload);
     exportVcardBtn.addEventListener('click', exportContactsAsVcard);

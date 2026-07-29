@@ -17,6 +17,7 @@ export function createContactRenderer({
     toggleLabelGroup
 }) {
     function renderLabels() {
+        const previousScrollTop = labelsList.scrollTop;
         const labels = getLabels();
         const selectedLabels = getSelectedLabels();
         labelsList.innerHTML = '';
@@ -56,6 +57,7 @@ export function createContactRenderer({
                 labelQuery
             ));
         }
+        labelsList.scrollTop = previousScrollTop;
     }
 
     function buildLabelGroup(group, groupLabels, selectedLabels, labelQuery) {
@@ -107,7 +109,7 @@ export function createContactRenderer({
     function buildLabelItem(label, selectedLabels) {
         const labelElement = document.createElement('label');
         labelElement.className = 'label-item';
-        labelElement.draggable = true;
+        labelElement.draggable = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
         labelElement.addEventListener('dragstart', event => {
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', label);

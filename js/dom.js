@@ -54,3 +54,4 @@ export const labelSearchInput = document.getElementById('labelSearchInput');
 export const mobileFilterSummary = document.getElementById('mobileFilterSummary');
 export const doneMobileLabelsBtn = document.getElementById('doneMobileLabelsBtn');
 export const addLabelGroupBtn = document.getElementById('addLabelGroupBtn');
+export const appVersion = document.getElementById('appVersion');

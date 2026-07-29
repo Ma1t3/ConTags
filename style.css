@@ -61,6 +61,15 @@ body {
     font-weight: 600;
 }
 
+.app-version {
+    align-self: flex-end;
+    margin: 0 0 0.15rem -0.25rem;
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
 .hamburger-button {
     width: 2.25rem;
     height: 2.25rem;
@@ -774,6 +783,10 @@ body {
     background: var(--bg-surface);
 }
 
+.label-group-body[hidden] {
+    display: none;
+}
+
 .label-group-empty {
     margin: 0.25rem 0.5rem 0.45rem;
     padding: 0.55rem;
@@ -1381,6 +1394,8 @@ body {
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
     }
 
     .sidebar.mobile-expanded .label-item {
@@ -1390,11 +1405,16 @@ body {
         padding: 0.65rem 0.75rem;
         border: 1px solid var(--border-color);
         background: var(--bg-page);
+        touch-action: pan-y;
     }
 
     .sidebar.mobile-expanded .label-group-header {
         min-height: 44px;
         padding: 0.55rem 0.65rem;
+    }
+
+    .sidebar.mobile-expanded .label-group {
+        flex: 0 0 auto;
     }
 
     .sidebar.mobile-expanded .label-text {

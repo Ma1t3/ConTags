@@ -1,4 +1,4 @@
-const CACHE_NAME = 'contags-v39';
+const CACHE_NAME = 'contags-v41';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS_TO_CACHE = [
   './js/contact-map.js',
   './js/ui-menus.js',
   './js/contact-renderer.js',
+  './js/version.js',
   './js/service-worker-registration.js',
   './manifest.json',
   './icon.png'
