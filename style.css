@@ -704,6 +704,7 @@ body {
 }
 
 .label-group {
+    flex: 0 0 auto;
     overflow: hidden;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
