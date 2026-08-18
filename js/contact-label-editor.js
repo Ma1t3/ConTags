@@ -7,6 +7,10 @@ export function createContactLabelEditor({
     suggestions,
     getAvailableLabels
 }) {
+    if (!editor || !chips || !input || !suggestions) {
+        return createLegacyLabelEditor(document.querySelector('input[name="labels"]'));
+    }
+
     let labels = [];
     let visibleSuggestions = [];
     let activeSuggestionIndex = -1;
@@ -207,4 +211,25 @@ export function createContactLabelEditor({
     }
 
     return { setLabels, getLabels, commitInput };
+}
+
+function createLegacyLabelEditor(input) {
+    function setLabels(labels) {
+        if (input) input.value = (labels || []).join(', ');
+    }
+
+    function getLabels() {
+        const seen = new Set();
+        return (input ? input.value : '')
+            .split(',')
+            .map(label => label.trim())
+            .filter(label => {
+                const key = label.toLocaleLowerCase();
+                if (!label || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    return { setLabels, getLabels, commitInput: () => false };
 }
