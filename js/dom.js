@@ -55,3 +55,5 @@ export const mobileFilterSummary = document.getElementById('mobileFilterSummary'
 export const doneMobileLabelsBtn = document.getElementById('doneMobileLabelsBtn');
 export const addLabelGroupBtn = document.getElementById('addLabelGroupBtn');
 export const appVersion = document.getElementById('appVersion');
+export const birthdayNotificationsBtn = document.getElementById('birthdayNotificationsBtn');
+export const birthdayNotificationsLabel = document.getElementById('birthdayNotificationsLabel');

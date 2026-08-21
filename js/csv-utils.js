@@ -43,6 +43,7 @@ export function parseCsvContacts(rows) {
             name,
             email: (row['E-mail 1 - Value'] || '').trim(),
             phone: (row['Phone 1 - Value'] || '').trim(),
+            birthday: (row.Birthday || row.Birthdate || row['Date of Birth'] || '').trim(),
             address: getAddress(row),
             labels: contactLabels
         };

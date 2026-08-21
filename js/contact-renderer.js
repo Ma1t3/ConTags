@@ -16,6 +16,58 @@ export function createContactRenderer({
     moveLabelToGroup,
     toggleLabelGroup
 }) {
+    const dragScrollEdgeSize = 72;
+    const dragScrollMaxSpeed = 14;
+    let dragScrollFrame = null;
+    let dragScrollVelocity = 0;
+
+    function runDragScroll() {
+        if (dragScrollVelocity === 0) {
+            dragScrollFrame = null;
+            return;
+        }
+        labelsList.scrollTop += dragScrollVelocity;
+        dragScrollFrame = requestAnimationFrame(runDragScroll);
+    }
+
+    function updateDragScroll(event) {
+        const bounds = labelsList.getBoundingClientRect();
+        const distanceFromTop = event.clientY - bounds.top;
+        const distanceFromBottom = bounds.bottom - event.clientY;
+        if (distanceFromTop < dragScrollEdgeSize) {
+            dragScrollVelocity = -dragScrollMaxSpeed
+                * (1 - Math.max(0, distanceFromTop) / dragScrollEdgeSize);
+        } else if (distanceFromBottom < dragScrollEdgeSize) {
+            dragScrollVelocity = dragScrollMaxSpeed
+                * (1 - Math.max(0, distanceFromBottom) / dragScrollEdgeSize);
+        } else {
+            stopDragScroll();
+            return;
+        }
+        if (dragScrollFrame === null) {
+            dragScrollFrame = requestAnimationFrame(runDragScroll);
+        }
+    }
+
+    function stopDragScroll() {
+        dragScrollVelocity = 0;
+        if (dragScrollFrame !== null) {
+            cancelAnimationFrame(dragScrollFrame);
+            dragScrollFrame = null;
+        }
+    }
+
+    labelsList.addEventListener('dragover', updateDragScroll);
+    labelsList.addEventListener('drop', stopDragScroll);
+    labelsList.addEventListener('dragleave', event => {
+        const bounds = labelsList.getBoundingClientRect();
+        const pointerIsOutside = event.clientX < bounds.left
+            || event.clientX > bounds.right
+            || event.clientY < bounds.top
+            || event.clientY > bounds.bottom;
+        if (pointerIsOutside) stopDragScroll();
+    });
+
     function renderLabels() {
         const previousScrollTop = labelsList.scrollTop;
         const labels = getLabels();
@@ -115,7 +167,10 @@ export function createContactRenderer({
             event.dataTransfer.setData('text/plain', label);
             labelElement.classList.add('is-dragging');
         });
-        labelElement.addEventListener('dragend', () => labelElement.classList.remove('is-dragging'));
+        labelElement.addEventListener('dragend', () => {
+            labelElement.classList.remove('is-dragging');
+            stopDragScroll();
+        });
 
         const dragHandle = document.createElement('i');
         dragHandle.className = 'ph ph-dots-six-vertical label-drag-handle';

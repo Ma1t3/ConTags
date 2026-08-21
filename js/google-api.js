@@ -18,9 +18,13 @@ export async function createGoogleContact(contact, accessToken) {
     if (contact.email) person.emailAddresses = [{ value: contact.email }];
     if (contact.phone) person.phoneNumbers = [{ value: contact.phone }];
     if (contact.address) person.addresses = [{ formattedValue: contact.address }];
+    if (contact.birthday) {
+        const [year, month, day] = contact.birthday.split('-').map(Number);
+        person.birthdays = [{ date: { year, month, day } }];
+    }
 
     const response = await fetch(
-        'https://people.googleapis.com/v1/people:createContact?personFields=names,emailAddresses,phoneNumbers,addresses,metadata',
+        'https://people.googleapis.com/v1/people:createContact?personFields=names,emailAddresses,phoneNumbers,addresses,birthdays,metadata',
         {
             method: 'POST',
             headers: {
@@ -47,7 +51,7 @@ export async function updateGoogleContact(contact, accessToken) {
         contact.googleMetadata = latestPerson.metadata;
     }
 
-    const fields = 'names,emailAddresses,phoneNumbers,addresses';
+    const fields = 'names,emailAddresses,phoneNumbers,addresses,birthdays';
     const response = await fetch(
         `https://people.googleapis.com/v1/${contact.resourceName}:updateContact` +
         `?updatePersonFields=${fields}&personFields=${fields},metadata`,
@@ -63,7 +67,11 @@ export async function updateGoogleContact(contact, accessToken) {
                 names: [{ unstructuredName: contact.name }],
                 emailAddresses: contact.email ? [{ value: contact.email }] : [],
                 phoneNumbers: contact.phone ? [{ value: contact.phone }] : [],
-                addresses: contact.address ? [{ formattedValue: contact.address }] : []
+                addresses: contact.address ? [{ formattedValue: contact.address }] : [],
+                birthdays: contact.birthday ? (() => {
+                    const [year, month, day] = contact.birthday.split('-').map(Number);
+                    return [{ date: { year, month, day } }];
+                })() : []
             })
         }
     );

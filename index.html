@@ -61,6 +61,10 @@
                         <i id="mapProgress" class="ph ph-arrows-clockwise map-progress-icon"
                            aria-label="Resolving addresses" title="Resolving addresses" hidden></i>
                     </button>
+                    <button id="birthdayNotificationsBtn" class="dropdown-item" type="button" role="menuitem">
+                        <i class="ph ph-bell"></i>
+                        <span id="birthdayNotificationsLabel">Enable birthday reminders</span>
+                    </button>
                     <button id="deleteContactsBtn" class="dropdown-item dropdown-item-danger"
                             type="button" role="menuitem" disabled>
                         <i class="ph ph-trash"></i>
@@ -223,6 +227,10 @@
                 <label class="form-field">
                     <span>Phone</span>
                     <input name="phone" type="tel" autocomplete="tel">
+                </label>
+                <label class="form-field">
+                    <span>Birthday</span>
+                    <input name="birthday" type="date" autocomplete="bday">
                 </label>
                 <label class="form-field">
                     <span>Address</span>

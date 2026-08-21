@@ -9,7 +9,8 @@ import {
     openMapBtn, resultsSummary, sidebarResultCount, contactDetailsDialog,
     closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn,
     microsoftImportBtn, syncMicrosoftBtn, microsoftSyncCount,
-    vcardFileInput, exportVcardBtn, addLabelGroupBtn, appVersion
+    vcardFileInput, exportVcardBtn, addLabelGroupBtn, appVersion,
+    birthdayNotificationsBtn, birthdayNotificationsLabel
 } from './dom.js';
 import { APP_VERSION } from './version.js';
 import { preparePhoto, getPhotoUrl } from './image-utils.js';
@@ -28,6 +29,10 @@ import { parseCsvContacts } from './csv-utils.js';
 import { initializeContactMap } from './contact-map.js';
 import { initializeMenus, closeImportMenu, closeSettingsMenu } from './ui-menus.js';
 import { createContactRenderer } from './contact-renderer.js';
+import {
+    initializeBirthdayNotifications, toggleBirthdayNotifications,
+    syncBirthdayNotifications
+} from './birthday-notifications.js';
 
 // State
 let contacts = [];
@@ -103,6 +108,10 @@ async function init() {
         renderContacts();
     });
     addLabelGroupBtn.addEventListener('click', createLabelGroup);
+    birthdayNotificationsBtn.addEventListener('click', async () => {
+        closeSettingsMenu();
+        await toggleBirthdayNotifications(contacts, birthdayNotificationsLabel);
+    });
 
     // Initialize Google OAuth Token Client if library is loaded
     if (typeof google !== 'undefined') {
@@ -115,6 +124,7 @@ async function init() {
     else window.addEventListener('load', initMicrosoftClient);
 
     await restoreContacts();
+    await initializeBirthdayNotifications(contacts, birthdayNotificationsLabel);
 }
 
 function openContactDialog(contact = null) {
@@ -132,6 +142,7 @@ function openContactDialog(contact = null) {
         contactForm.elements.name.value = contact.name || '';
         contactForm.elements.email.value = contact.email || '';
         contactForm.elements.phone.value = contact.phone || '';
+        contactForm.elements.birthday.value = contact.birthday || '';
         contactForm.elements.address.value = contact.address || '';
         contactForm.elements.labels.value = (contact.labels || []).join(', ');
         showPhotoPreview(contact.photo ? getPhotoUrl(contact.photo) : contact.photoUrl);
@@ -181,7 +192,8 @@ function openContactDetails(contact) {
     const detailRows = [
         contact.email ? detailRow('ph-envelope-simple', 'Email', contact.email) : '',
         contact.phone ? detailRow('ph-phone', 'Phone', contact.phone) : '',
-        contact.address ? detailRow('ph-map-pin', 'Address', contact.address) : ''
+        contact.address ? detailRow('ph-map-pin', 'Address', contact.address) : '',
+        contact.birthday ? detailRow('ph-cake', 'Birthday', formatBirthday(contact.birthday)) : ''
     ].join('');
     const labels = (contact.labels || []).map(label =>
         `<span class="card-label-tag">${escapeHtml(label)}</span>`
@@ -218,6 +230,12 @@ function detailRow(iconClass, label, value) {
         </div>`;
 }
 
+function formatBirthday(value) {
+    const parts = String(value).split('-');
+    if (parts.length !== 3) return value;
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
 function closeContactDetails() {
     contactDetailsDialog.close();
     viewingContact = null;
@@ -242,6 +260,7 @@ async function createContact(event) {
         name: formData.get('name').trim(),
         email: formData.get('email').trim(),
         phone: formData.get('phone').trim(),
+        birthday: formData.get('birthday').trim(),
         address: formData.get('address').trim(),
         labels: formData.get('labels')
             .split(',')
@@ -390,6 +409,7 @@ async function saveContacts(source) {
     currentDataSource = source;
     lastUpdated = savedAt;
     updateStorageInfo();
+    await syncBirthdayNotifications(contacts);
 }
 
 async function restoreContacts() {
@@ -431,6 +451,7 @@ async function deleteLocalContacts() {
         await removeContacts();
 
         contacts = [];
+        await syncBirthdayNotifications(contacts);
         labelGroups = [];
         ungroupedCollapsed = false;
         allLabels.clear();
@@ -836,7 +857,7 @@ async function fetchGoogleContacts(accessToken) {
         // 2. Fetch Contacts
         statusMessage.textContent = 'Fetching Contacts...';
         const response = await fetch(
-            'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,addresses,memberships,photos,metadata&pageSize=2000',
+            'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,addresses,birthdays,memberships,photos,metadata&pageSize=2000',
             { headers }
         );
 
@@ -875,6 +896,10 @@ async function processGoogleData(connections, labelMap) {
         const photos = connection.photos || [];
         const profilePhoto = photos.find(photo => photo.url && !photo.default);
         const googlePhotoUrl = profilePhoto ? profilePhoto.url : '';
+        const birthdayDate = connection.birthdays && connection.birthdays[0] && connection.birthdays[0].date;
+        const birthday = birthdayDate && birthdayDate.year
+            ? `${birthdayDate.year}-${String(birthdayDate.month).padStart(2, '0')}-${String(birthdayDate.day).padStart(2, '0')}`
+            : '';
 
         // Labels / Memberships
         const labelList = [];
@@ -907,6 +932,7 @@ async function processGoogleData(connections, labelMap) {
             email: email,
             phone: phone,
             address,
+            birthday,
             labels: labelList,
             photo: null,
             photoUrl: '',

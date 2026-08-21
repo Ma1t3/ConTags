@@ -35,13 +35,14 @@ export function parseVcards(text) {
                 fields.address = value.split(';').filter(Boolean).join(', ');
             } else if (key === 'CATEGORIES' || key.startsWith('CATEGORIES;')) {
                 labels.push(...value.split(',').map(item => item.trim()).filter(Boolean));
-            }
+            } else if (key === 'BDAY' || key.startsWith('BDAY;')) fields.birthday = value.slice(0, 10);
         });
         if (!fields.name) return null;
         return {
             name: fields.name,
             email: fields.email || '',
             phone: fields.phone || '',
+            birthday: fields.birthday || '',
             address: fields.address || '',
             labels: [...new Set(labels)],
             photo: null,
@@ -60,6 +61,7 @@ export function exportVcards(contacts) {
         `FN:${escapeVcard(contact.name)}`,
         contact.email ? `EMAIL:${escapeVcard(contact.email)}` : '',
         contact.phone ? `TEL:${escapeVcard(contact.phone)}` : '',
+        contact.birthday ? `BDAY:${escapeVcard(contact.birthday)}` : '',
         contact.address ? `ADR:;;${escapeVcard(contact.address)}` : '',
         contact.labels && contact.labels.length
             ? `CATEGORIES:${contact.labels.map(escapeVcard).join(',')}`

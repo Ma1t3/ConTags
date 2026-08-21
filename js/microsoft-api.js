@@ -33,13 +33,14 @@ function toGraphContact(contact) {
             : [],
         businessPhones: contact.phone ? [contact.phone] : [],
         homeAddress: contact.address ? { street: contact.address } : {},
+        birthday: contact.birthday ? `${contact.birthday}T00:00:00Z` : null,
         categories: contact.labels || []
     };
 }
 
 export async function fetchMicrosoftContacts(accessToken) {
     const contacts = [];
-    let url = '/me/contacts?$top=250&$select=id,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,homeAddress,businessAddress,categories,changeKey';
+    let url = '/me/contacts?$top=250&$select=id,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,homeAddress,businessAddress,birthday,categories,changeKey';
     while (url) {
         const page = await graphRequest(url, accessToken);
         contacts.push(...(page.value || []));
@@ -72,6 +73,7 @@ export function microsoftContactToLocal(contact) {
             'No Name',
         email,
         phone,
+        birthday: contact.birthday ? contact.birthday.slice(0, 10) : '',
         address,
         labels: contact.categories || [],
         photo: null,

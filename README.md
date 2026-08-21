@@ -7,6 +7,9 @@ Use it by clicking the link: https://ma1t3.github.io/ConTags/
 - **Instant Search & Filtering:** Quickly search by name, phone, or email. Filter contacts by checking off required label tags.
 - **Cross-Platform PWA:** Install ConTags directly to your Android or Desktop home screen. It feels and runs exactly like a native app.
 - **Complete Client-Side Privacy:** Your contacts never leave your device. The CSV parsing (using `PapaParse`) happens entirely within your browser memory.
+- **Birthday reminders:** Enable local Android/PWA notifications from the settings menu. ConTags checks birthdays whenever it opens and uses Periodic Background Sync where the browser permits it.
+
+Birthday reminders require notification permission and an installed PWA. Android may delay or suppress periodic background checks depending on battery settings and site engagement. Guaranteed delivery while the app is closed requires a separate Web Push server (not included in this client-only deployment).
 
 ## Mobile Installation
 Because ConTags is a Progressive Web App (PWA):
