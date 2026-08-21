@@ -4,9 +4,10 @@ import {
     clearFiltersBtn, googleImportBtn, deleteContactsBtn, storageInfo,
     createContactBtn, contactDialog, contactForm,
     closeContactDialogBtn, cancelContactBtn, contactFormError, contactPhotoInput,
-    contactPhotoPreview, syncGoogleBtn, syncCount, contactDialogTitle,
+    contactPhotoPreview, contactLabelsEditor, contactLabelChips, contactLabelInput,
+    contactLabelSuggestions, syncGoogleBtn, syncCount, contactDialogTitle,
     contactDialogDescription, contactSubmitLabel,
-    openMapBtn, resultsSummary, sidebarResultCount, contactDetailsDialog,
+    openMapBtn, resultsSummary, contactDetailsDialog,
     closeContactDetailsBtn, contactDetailsBody, editContactFromDetailsBtn,
     microsoftImportBtn, syncMicrosoftBtn, microsoftSyncCount,
     vcardFileInput, exportVcardBtn, addLabelGroupBtn, appVersion,
@@ -33,6 +34,7 @@ import {
     initializeBirthdayNotifications, toggleBirthdayNotifications,
     syncBirthdayNotifications
 } from './birthday-notifications.js';
+import { createContactLabelEditor } from './contact-label-editor.js';
 
 // State
 let contacts = [];
@@ -49,6 +51,9 @@ let ungroupedCollapsed = false;
 // Google OAuth Data
 let tokenClient;
 let googleAuthIntent = 'import';
+let googleAccessToken = '';
+let googleAccessTokenExpiresAt = 0;
+const GOOGLE_TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
 let microsoftClient;
 
 // Debounce for search
@@ -65,6 +70,13 @@ const contactRenderer = createContactRenderer({
     toggleLabelGroup
 });
 const { renderLabels, renderContacts } = contactRenderer;
+const contactLabelEditor = createContactLabelEditor({
+    editor: contactLabelsEditor,
+    chips: contactLabelChips,
+    input: contactLabelInput,
+    suggestions: contactLabelSuggestions,
+    getAvailableLabels: () => allLabels
+});
 
 // Initialization
 async function init() {
@@ -137,6 +149,7 @@ function openContactDialog(contact = null) {
         ? 'Changes are saved locally and can be synced with its contact provider.'
         : 'Add a contact to your locally stored list.';
     contactSubmitLabel.textContent = contact ? 'Save changes' : 'Save contact';
+    contactLabelEditor.setLabels(contact ? contact.labels : []);
 
     if (contact) {
         contactForm.elements.name.value = contact.name || '';
@@ -144,7 +157,6 @@ function openContactDialog(contact = null) {
         contactForm.elements.phone.value = contact.phone || '';
         contactForm.elements.birthday.value = contact.birthday || '';
         contactForm.elements.address.value = contact.address || '';
-        contactForm.elements.labels.value = (contact.labels || []).join(', ');
         showPhotoPreview(contact.photo ? getPhotoUrl(contact.photo) : contact.photoUrl);
     }
     contactFormError.hidden = true;
@@ -256,16 +268,14 @@ async function createContact(event) {
     contactFormError.hidden = true;
 
     const formData = new FormData(contactForm);
+    contactLabelEditor.commitInput();
     const newValues = {
         name: formData.get('name').trim(),
         email: formData.get('email').trim(),
         phone: formData.get('phone').trim(),
         birthday: formData.get('birthday').trim(),
         address: formData.get('address').trim(),
-        labels: formData.get('labels')
-            .split(',')
-            .map(label => label.trim())
-            .filter((label, index, labels) => label && labels.indexOf(label) === index),
+        labels: contactLabelEditor.getLabels(),
         photo: editingContact ? editingContact.photo : null,
         photoUrl: editingContact ? editingContact.photoUrl : ''
     };
@@ -465,8 +475,6 @@ async function deleteLocalContacts() {
         labelsList.innerHTML = '<p class="empty-state-text">No labels loaded</p>';
         contactsGrid.innerHTML = '';
         resultsSummary.hidden = true;
-        sidebarResultCount.textContent = '0';
-        sidebarResultCount.classList.remove('is-filtered');
         contactRenderer.updateMobileSummary(0, 0);
         statusMessage.textContent = 'Please load a contacts CSV file to begin.';
         statusMessage.style.display = 'block';
@@ -730,12 +738,14 @@ function initGoogleClient() {
         scope: 'https://www.googleapis.com/auth/contacts',
         callback: async (tokenResponse) => {
             if (tokenResponse && tokenResponse.access_token) {
+                cacheGoogleAccessToken(tokenResponse);
                 if (googleAuthIntent === 'sync') {
-                    await syncPendingContacts(tokenResponse.access_token);
+                    await syncPendingContacts(googleAccessToken);
                 } else {
-                    await fetchGoogleContacts(tokenResponse.access_token);
+                    await fetchGoogleContacts(googleAccessToken);
                 }
             } else if (tokenResponse && tokenResponse.error) {
+                clearGoogleAccessToken();
                 statusMessage.textContent = `Google authorization failed: ${tokenResponse.error}`;
                 statusMessage.style.display = 'block';
                 updateSyncUi();
@@ -752,19 +762,55 @@ function initGoogleClient() {
             return;
         }
 
-        // Request an access token
-        tokenClient.requestAccessToken();
+        requestGoogleAccess('import');
     });
 }
 
-function requestGoogleSync() {
+async function requestGoogleSync() {
     closeSettingsMenu();
     if (!tokenClient) {
         alert('Google sign-in is not ready yet. Please try again in a moment.');
         return;
     }
-    googleAuthIntent = 'sync';
-    tokenClient.requestAccessToken();
+    await requestGoogleAccess('sync');
+}
+
+async function requestGoogleAccess(intent) {
+    googleAuthIntent = intent;
+    const accessToken = getValidGoogleAccessToken();
+    if (accessToken) {
+        if (intent === 'sync') await syncPendingContacts(accessToken);
+        else await fetchGoogleContacts(accessToken);
+        return;
+    }
+
+    // An empty prompt avoids another account chooser after the user has already
+    // granted access. Google still displays sign-in or consent when required.
+    tokenClient.requestAccessToken({ prompt: '' });
+}
+
+function cacheGoogleAccessToken(tokenResponse) {
+    const expiresInSeconds = Number(tokenResponse.expires_in);
+    googleAccessToken = tokenResponse.access_token;
+    googleAccessTokenExpiresAt = Number.isFinite(expiresInSeconds) && expiresInSeconds > 0
+        ? Date.now() + (expiresInSeconds * 1000)
+        : 0;
+}
+
+function getValidGoogleAccessToken() {
+    if (
+        googleAccessToken &&
+        googleAccessTokenExpiresAt > Date.now() + GOOGLE_TOKEN_EXPIRY_SKEW_MS
+    ) {
+        return googleAccessToken;
+    }
+    clearGoogleAccessToken();
+    return '';
+}
+
+function clearGoogleAccessToken() {
+    googleAccessToken = '';
+    googleAccessTokenExpiresAt = 0;
 }
 
 async function syncPendingContacts(accessToken) {

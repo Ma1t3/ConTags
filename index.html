@@ -138,7 +138,7 @@
             <div class="sidebar-header">
                 <h2>
                     Labels
-                    <span id="sidebarResultCount" class="sidebar-result-count" aria-label="Matching contacts">0</span>
+                    <span id="sidebarResultCount" hidden aria-hidden="true"></span>
                 </h2>
                 <div class="sidebar-header-actions">
                     <button class="icon-button add-label-group-btn" id="addLabelGroupBtn"
@@ -237,11 +237,22 @@
                     <textarea name="address" rows="2" autocomplete="street-address"
                               placeholder="Street, postal code, city, country"></textarea>
                 </label>
-                <label class="form-field">
-                    <span>Labels</span>
-                    <input name="labels" type="text" placeholder="Friends, Work">
-                    <small>Separate multiple labels with commas.</small>
-                </label>
+                <div class="form-field">
+                    <label for="contactLabelInput">Labels</label>
+                    <div class="contact-label-control">
+                        <div id="contactLabelsEditor" class="contact-label-editor">
+                            <div id="contactLabelChips" class="contact-label-chips"></div>
+                            <input id="contactLabelInput" class="contact-label-input" type="text"
+                                   placeholder="Add a label" autocomplete="off"
+                                   aria-autocomplete="list" aria-controls="contactLabelSuggestions"
+                                   aria-expanded="false">
+                        </div>
+                        <div id="contactLabelSuggestions" class="contact-label-suggestions"
+                             role="listbox" aria-label="Existing labels" hidden></div>
+                    </div>
+                    <input name="labels" type="hidden" aria-hidden="true">
+                    <small>Press Enter to add a label. Use a chip's remove button to delete one.</small>
+                </div>
             </div>
             <p id="contactFormError" class="form-error" role="alert" hidden></p>
             <div class="dialog-actions">

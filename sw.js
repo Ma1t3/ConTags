@@ -17,6 +17,7 @@ const ASSETS_TO_CACHE = [
   './js/contact-map.js',
   './js/ui-menus.js',
   './js/contact-renderer.js',
+  './js/contact-label-editor.js',
   './js/version.js',
   './js/service-worker-registration.js',
   './js/birthday-notifications.js',

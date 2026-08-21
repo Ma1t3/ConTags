@@ -1,6 +1,6 @@
 import {
     labelsList, labelSearchInput, searchInput, contactsGrid, resultsSummary,
-    filteredResultCount, sidebarResultCount, resultsCountLabel, resultsContext,
+    filteredResultCount, resultsCountLabel, resultsContext,
     mobileFilterResultCount, mobileFilterSummary, mobileSelectedLabelCount
 } from './dom.js';
 import { getPhotoUrl } from './image-utils.js';
@@ -314,7 +314,6 @@ export function createContactRenderer({
 
         resultsSummary.hidden = selectedLabels.size === 0;
         filteredResultCount.textContent = filteredCount.toLocaleString();
-        sidebarResultCount.textContent = filteredCount.toLocaleString();
         resultsCountLabel.textContent = filteredCount === 1 ? 'contact' : 'contacts';
 
         const contexts = [];
@@ -333,7 +332,6 @@ export function createContactRenderer({
             : 'total';
         const filtered = filteredCount !== contacts.length || contexts.length > 0;
         resultsSummary.classList.toggle('results-filtered', filtered);
-        sidebarResultCount.classList.toggle('is-filtered', filtered);
         updateMobileSummary(filteredCount, selectedLabels.size);
     }
 
