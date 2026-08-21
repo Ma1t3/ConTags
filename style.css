@@ -968,11 +968,46 @@ body {
 }
 
 .label-text {
+    flex: 1;
+    min-width: 0;
     font-size: 0.9rem;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.label-operator {
+    min-width: 3.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font: inherit;
+    font-size: 0.65rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.label-operator.is-or {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
+.label-operator:disabled {
+    visibility: hidden;
+}
+
+.label-operator:not(:disabled):hover,
+.label-operator:not(:disabled):focus-visible {
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.14);
+    outline: none;
 }
 
 /* --- Main Content Area --- */

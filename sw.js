@@ -1,4 +1,4 @@
-const CACHE_NAME = 'contags-v43';
+const CACHE_NAME = 'contags-v45';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

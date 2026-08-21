@@ -16,6 +16,7 @@ export function createContactRenderer({
     moveLabelToGroup,
     toggleLabelGroup
 }) {
+    const orLabels = new Set();
     const dragScrollEdgeSize = 72;
     const dragScrollMaxSpeed = 14;
     let dragScrollFrame = null;
@@ -72,6 +73,9 @@ export function createContactRenderer({
         const previousScrollTop = labelsList.scrollTop;
         const labels = getLabels();
         const selectedLabels = getSelectedLabels();
+        for (const label of orLabels) {
+            if (!selectedLabels.has(label)) orLabels.delete(label);
+        }
         labelsList.innerHTML = '';
         const labelQuery = (labelSearchInput.value || '').trim().toLowerCase();
         const sortedLabels = Array.from(labels).sort((a, b) => a.localeCompare(b));
@@ -182,28 +186,60 @@ export function createContactRenderer({
         checkbox.checked = selectedLabels.has(label);
         checkbox.addEventListener('change', event => {
             if (event.target.checked) selectedLabels.add(label);
-            else selectedLabels.delete(label);
+            else {
+                selectedLabels.delete(label);
+                orLabels.delete(label);
+            }
+            updateOperatorButton();
             renderContacts();
         });
         const text = document.createElement('span');
         text.className = 'label-text';
         text.textContent = label;
         text.title = label;
-        labelElement.append(dragHandle, checkbox, text);
+        const operatorButton = document.createElement('button');
+        operatorButton.type = 'button';
+        operatorButton.className = 'label-operator';
+
+        function updateOperatorButton() {
+            const isOr = orLabels.has(label);
+            operatorButton.disabled = !checkbox.checked;
+            operatorButton.classList.toggle('is-or', isOr);
+            operatorButton.innerHTML = `<i class="ph ${isOr ? 'ph-union' : 'ph-intersect'}"></i><span>${isOr ? 'OR' : 'AND'}</span>`;
+            operatorButton.setAttribute(
+                'aria-label',
+                `${label}: ${isOr ? 'OR, tap to make mandatory' : 'AND, mandatory; tap to make optional'}`
+            );
+            operatorButton.title = isOr
+                ? 'OR: match at least one optional label. Tap for AND.'
+                : 'AND: this label is mandatory. Tap for OR.';
+        }
+
+        operatorButton.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!checkbox.checked) return;
+            if (orLabels.has(label)) orLabels.delete(label);
+            else orLabels.add(label);
+            updateOperatorButton();
+            renderContacts();
+        });
+        operatorButton.addEventListener('dragstart', event => event.preventDefault());
+        updateOperatorButton();
+        labelElement.append(dragHandle, checkbox, text, operatorButton);
         return labelElement;
     }
 
     function renderContacts() {
         const contacts = getContacts();
         const selectedLabels = getSelectedLabels();
+        const andLabels = Array.from(selectedLabels).filter(label => !orLabels.has(label));
+        const selectedOrLabels = Array.from(selectedLabels).filter(label => orLabels.has(label));
         const query = (searchInput.value || '').trim().toLowerCase();
         const filtered = contacts.filter(contact => {
-            if (
-                selectedLabels.size > 0 &&
-                !Array.from(selectedLabels).every(label => contact.labels.includes(label))
-            ) {
-                return false;
-            }
+            const contactLabels = contact.labels || [];
+            if (!andLabels.every(label => contactLabels.includes(label))) return false;
+            if (selectedOrLabels.length && !selectedOrLabels.some(label => contactLabels.includes(label))) return false;
             if (!query) return true;
             return [contact.name, contact.email, contact.phone, contact.address]
                 .some(value => (value || '').toLowerCase().includes(query));
@@ -318,12 +354,10 @@ export function createContactRenderer({
 
         const contexts = [];
         if (selectedLabels.size > 0) {
-            const labelNames = Array.from(selectedLabels);
-            const visibleNames = labelNames.slice(0, 2).map(label => `"${label}"`);
-            const remaining = labelNames.length - visibleNames.length;
-            let labelContext = visibleNames.join(' + ');
-            if (remaining > 0) labelContext += ` + ${remaining} more`;
-            contexts.push(labelContext);
+            const andLabels = Array.from(selectedLabels).filter(label => !orLabels.has(label));
+            const selectedOrLabels = Array.from(selectedLabels).filter(label => orLabels.has(label));
+            if (andLabels.length) contexts.push(`AND: ${formatLabelContext(andLabels, ' + ')}`);
+            if (selectedOrLabels.length) contexts.push(`OR: ${formatLabelContext(selectedOrLabels, ' or ')}`);
         }
         if (query) contexts.push(`search: "${query}"`);
 
@@ -333,6 +367,14 @@ export function createContactRenderer({
         const filtered = filteredCount !== contacts.length || contexts.length > 0;
         resultsSummary.classList.toggle('results-filtered', filtered);
         updateMobileSummary(filteredCount, selectedLabels.size);
+    }
+
+    function formatLabelContext(labels, separator) {
+        const visibleNames = labels.slice(0, 2).map(label => `"${label}"`);
+        const remaining = labels.length - visibleNames.length;
+        let context = visibleNames.join(separator);
+        if (remaining > 0) context += ` + ${remaining} more`;
+        return context;
     }
 
     function updateMobileSummary(filteredCount, selectedCount) {
