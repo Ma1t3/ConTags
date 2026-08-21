@@ -810,6 +810,8 @@ body {
 
 /* Custom Checkbox for labels */
 .label-item {
+    width: 100%;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -820,6 +822,7 @@ body {
 }
 
 .label-group {
+    min-width: 0;
     flex: 0 0 auto;
     overflow: hidden;
     border: 1px solid var(--border-color);
@@ -893,6 +896,7 @@ body {
 }
 
 .label-group-body {
+    min-width: 0;
     display: grid;
     gap: 0.15rem;
     padding: 0.35rem;
@@ -978,6 +982,7 @@ body {
 }
 
 .label-operator {
+    flex: 0 0 auto;
     min-width: 3.8rem;
     display: inline-flex;
     align-items: center;
